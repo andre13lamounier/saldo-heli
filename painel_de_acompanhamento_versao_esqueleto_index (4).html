@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Painel de Acompanhamento — Final</title>
+  <style>
+    :root{--bg:#0b0f14;--card:#121821;--soft:#1a2230;--text:#e6edf3;--muted:#9fb0c8;--accent:#3aa6ff;--br:16px}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial}
+    .wrap{max-width:900px;margin:0 auto;padding:16px}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;flex-wrap:wrap}
+    h1{font-size:18px;margin:0}
+    /* Login */
+    .login{max-width:360px;margin:10vh auto;background:var(--card);padding:24px;border-radius:var(--br);box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    .f{display:flex;flex-direction:column;gap:10px}
+    .f label{font-size:12px;color:var(--muted)}
+    .f input{background:var(--soft);border:1px solid #263247;color:var(--text);padding:10px;border-radius:10px}
+    .btn{background:var(--accent);border:0;color:#00111f;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:700}
+    .err{color:#ff453a;font-size:12px;height:16px}
+    .app{display:none}
+    /* Cards */
+    .grid{display:grid;grid-template-columns:1fr;gap:12px}
+    @media (min-width:520px){.grid{grid-template-columns:repeat(2,1fr)}}
+    @media (min-width:900px){.grid{grid-template-columns:repeat(3,1fr)}}
+    .card{background:var(--card);padding:16px;border-radius:var(--br)}
+    .card .k{font-size:12px;color:var(--muted)}
+    .card .v{font-size:20px;font-weight:800;margin-top:4px}
+    .highlight{border:1px solid #263247}
+    .span2{@media (min-width:520px){grid-column:span 2}}
+    .muted{color:var(--muted);font-size:12px}
+    /* Tabs + filtros */
+    .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0}
+    .tabs{display:flex;gap:8px}
+    .tab{background:transparent;border:1px solid #22304a;color:var(--muted);padding:6px 12px;border-radius:999px;cursor:pointer}
+    .tab.active{color:var(--text);background:#182134}
+    .pill{background:var(--soft);border:1px solid #22304a;padding:6px 10px;border-radius:999px;color:var(--muted);cursor:pointer}
+    .pill.active{color:var(--text);border-color:#2c3f61}
+    .search{flex:1;min-width:170px}
+    .search input{width:100%;background:var(--soft);border:1px solid #22304a;color:var(--text);padding:8px 10px;border-radius:10px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{border-bottom:1px solid #1f2a3e;padding:8px;text-align:left}
+    th{color:var(--muted);font-weight:600}
+    tbody tr:hover{background:#121a28}
+    .right{text-align:right}
+  </style>
+</head>
+<body>
+  <!-- LOGIN -->
+  <section id="login" class="login">
+    <h2 style="margin:0 0 8px 0">Painel de Acompanhamento</h2>
+    <div class="f">
+      <label for="email">E-mail</label>
+      <input id="email" type="email" autocomplete="username" />
+      <label for="pass">Senha</label>
+      <input id="pass" type="password" autocomplete="current-password" />
+      <div class="err" id="err"></div>
+      <button id="go" class="btn">Entrar</button>
+    </div>
+  </section>
+
+  <!-- APP -->
+  <section id="app" class="app">
+    <div class="wrap">
+      <header>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <h1>Painel de Acompanhamento</h1>
+          <span id="updated" class="muted">Atualizado em —</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="refresh" class="btn">Atualizar</button>
+          <button id="logout" class="btn" style="background:#3b3b3b;color:#fff">Sair</button>
+        </div>
+      </header>
+
+      <!-- CARDS -->
+      <div id="cards" class="grid">
+        <div class="card highlight span2"><div class="k">Valor Total</div><div class="v" id="total">—</div></div>
+        <div class="card highlight span2"><div class="k">Rendimento Total</div><div class="v" id="rtotal">—</div></div>
+        <div class="card"><div class="k">Saldo Aplicação CDI</div><div class="v" id="saldo1">—</div></div>
+        <div class="card"><div class="k">Rendimento Aplicação CDI</div><div class="v" id="rend1">—</div></div>
+        <div class="card"><div class="k">Saldo Conta CDI</div><div class="v" id="saldo2">—</div></div>
+        <div class="card"><div class="k">Rendimento Conta CDI</div><div class="v" id="rend2">—</div></div>
+      </div>
+
+      <!-- TABS + FILTROS -->
+      <div class="bar">
+        <div class="tabs">
+          <button class="tab active" data-tab="depositos">Depósitos</button>
+          <button class="tab" data-tab="rend1">Rend. Aplicação CDI</button>
+          <button class="tab" data-tab="rend2">Rend. Conta CDI</button>
+        </div>
+        <div class="pill active" data-range="30">Últimos 30 dias</div>
+        <div class="pill" data-range="90">Últimos 90 dias</div>
+        <div class="pill" data-range="all">Tudo</div>
+        <div class="search"><input id="q" type="search" placeholder="Buscar por detalhe…" /></div>
+      </div>
+
+      <!-- TABELAS -->
+      <div id="t-depositos"></div>
+      <div id="t-rend1" style="display:none"></div>
+      <div id="t-rend2" style="display:none"></div>
+    </div>
+  </section>
+
+<script>
+(function(){
+  // ===== CONFIG LOGIN =====
+  const LOGIN_EMAIL = 'lamounier16@gmail.com';
+  const LOGIN_PASS  = 'helilamounier16';
+
+  // ===== PLANILHA PUBLICADA (CSV) =====
+  const BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSSTZeX26G70f5Xd9WyqZkLE4kjkL4qUUVdpHGras3NWUqjHvRPEY62NB8IzPGpgZmIKbekFDD7gxfg/pub?output=csv&single=true&sheet=';
+  const SHEETS = {controle:'Controle', depositos:'Depósitos', rend1:'Rendimentos - Investimento 1', rend2:'Rendimentos - Investimento 2'};
+
+  // ===== STATE =====
+  let cutoff = null; // Data limite = Controle!A2
+  let dep = [], r1 = [], r2 = [];
+  let booted = false;
+
+  // ===== DOM HELPERS =====
+  const $ = (s)=>document.querySelector(s);
+  function showLogin(){ $('#login').style.display='block'; $('#app').style.display='none'; }
+  function showApp(){   $('#login').style.display='none';  $('#app').style.display='block'; }
+  function saveAuth(){ try{ localStorage.setItem('pa_auth','1'); }catch(e){} }
+  function clearAuth(){try{ localStorage.removeItem('pa_auth'); }catch(e){} }
+  function hasAuth(){ try{ return localStorage.getItem('pa_auth')==='1'; }catch(e){ return false; } }
+
+  window.addEventListener('DOMContentLoaded', ()=>{ if(hasAuth()){ showApp(); ensureBoot(); } else { showLogin(); }});
+  $('#go').addEventListener('click', ()=>{ const e=$('#email').value.trim(), p=$('#pass').value; if(e===LOGIN_EMAIL&&p===LOGIN_PASS){ saveAuth(); showApp(); ensureBoot(); } else { $('#err').textContent='Credenciais inválidas'; }});
+  $('#logout').addEventListener('click', ()=>{ clearAuth(); location.reload(); });
+  function ensureBoot(){ if(!booted){ booted=true; boot(); } }
+
+  // ===== CSV PARSER (com aspas) =====
+  function parseCSV(text){
+    const lines = text.replace(/\r/g,'').split(/\n+/).filter(Boolean);
+    const rows = lines.map(line=>{ const out=[]; let cur=''; let q=false; for(let i=0;i<line.length;i++){ const ch=line[i]; if(ch==='"'){ if(q && line[i+1]==='"'){ cur+='"'; i++; } else { q=!q; } } else if(ch===',' && !q){ out.push(cur); cur=''; } else { cur+=ch; } } out.push(cur); return out; });
+    const cols = rows.shift() || [];
+    return { cols, rows };
+  }
+  async function fetchSheet(sheet){ const url = BASE + encodeURIComponent(sheet) + '&ts=' + Date.now(); const res = await fetch(url); if(!res.ok){ return {cols:[],rows:[]} } const txt = await res.text(); return parseCSV(txt); }
+
+  // ===== FORMAT/UTILS =====
+  const norm = s => (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
+  const findIndex = (cols, cands)=>{ const C=cols.map(norm); for(const c of cands){ const i=C.indexOf(norm(c)); if(i>=0) return i; } return -1; };
+  function toDate(s){ if(!s) return null; if(s instanceof Date) return s; if(typeof s==='number') return new Date(s); if(typeof s==='string'){ const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/); if(m){ const dd=+m[1], mm=+m[2]-1, yy=(+m[3]<100?2000+(+m[3]):+m[3]); return new Date(yy,mm,dd);} const iso=new Date(s); if(!isNaN(iso)) return iso; } return null; }
+  function fmtBRL(n){ if(n==null||n==='') return '—'; const num = typeof n==='string'? parseFloat(String(n).replace(/[^0-9\-.,]/g,'').replace(/\./g,'').replace(',', '.')) : n; if(isNaN(num)) return String(n); return num.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
+  function fmtDate(d){ if(!(d instanceof Date)||isNaN(d)) return '—'; const dd=String(d.getDate()).padStart(2,'0'), mm=String(d.getMonth()+1).padStart(2,'0'), yy=d.getFullYear(); return `${dd}/${mm}/${yy}`; }
+  function escapeHTML(s){ return String(s).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+
+  // ===== CARREGAMENTO =====
+  async function loadControle(){
+    const g = await fetchSheet(SHEETS.controle);
+    if(!g.rows.length) return;
+    const c=g.cols, r=g.rows[0];
+    const ix={ data:findIndex(c,['data']), aplic1:findIndex(c,['aplicação 1','aplicacao 1']), rend1:findIndex(c,['rendimento 1']), aplic2:findIndex(c,['aplicação 2','aplicacao 2']), rend2:findIndex(c,['rendimento 2']), total:findIndex(c,['total']), rtotal:findIndex(c,['rendimento total']) };
+    const dA2 = toDate(r[ix.data]);
+    cutoff = dA2 || new Date();
+    $('#total').textContent  = fmtBRL(r[ix.total]);
+    $('#rtotal').textContent = fmtBRL(r[ix.rtotal]);
+    $('#saldo1').textContent = fmtBRL(r[ix.aplic1]);
+    $('#rend1').textContent  = fmtBRL(r[ix.rend1]);
+    $('#saldo2').textContent = fmtBRL(r[ix.aplic2]);
+    $('#rend2').textContent  = fmtBRL(r[ix.rend2]);
+    $('#updated').textContent = 'Atualizado em ' + fmtDate(dA2);
+  }
+
+  async function loadDepositos(){
+    const g = await fetchSheet(SHEETS.depositos);
+    if(!g.rows.length){ dep=[]; return; }
+    const c=g.cols; const ix={ data:findIndex(c,['data']), valor:findIndex(c,['depósito','deposito']), detalhe:findIndex(c,['detalhe']) };
+    dep = g.rows.map(r=>({ data:toDate(r[ix.data]), valor:r[ix.valor], det: ix.detalhe>=0 ? (r[ix.detalhe]||'') : '' }))
+                .filter(x=> x.data && x.data<=cutoff);
+  }
+  async function loadRend1(){
+    const g = await fetchSheet(SHEETS.rend1);
+    if(!g.rows.length){ r1=[]; return; }
+    const c=g.cols; const ix={ data:findIndex(c,['data']), valor:findIndex(c,['rendimento']), detalhe:findIndex(c,['detalhe']) };
+    r1 = g.rows.map(r=>({ data:toDate(r[ix.data]), valor:r[ix.valor], det: ix.detalhe>=0 ? (r[ix.detalhe]||'') : '' }))
+               .filter(x=> x.data && x.data<=cutoff);
+  }
+  async function loadRend2(){
+    const g = await fetchSheet(SHEETS.rend2);
+    if(!g.rows.length){ r2=[]; return; }
+    const c=g.cols; const ix={ data:findIndex(c,['data']), valor:findIndex(c,['rendimento']), detalhe:findIndex(c,['detalhe']) };
+    r2 = g.rows.map(r=>({ data:toDate(r[ix.data]), valor:r[ix.valor], det: ix.detalhe>=0 ? (r[ix.detalhe]||'') : '' }))
+               .filter(x=> x.data && x.data<=cutoff);
+  }
+
+  // ===== RENDER =====
+  function tableHTML(headers, rows){
+    if(!rows.length) return '<div class="card"><span class="muted">Sem lançamentos no período.</span></div>';
+    const thead = '<thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead>';
+    const tbody = '<tbody>'+rows.map(r=>'<tr>'+r.map((c,i)=>'<td class="'+(i===1?'right':'')+'">'+c+'</td>').join('')+'</tr>').join('')+'</tbody>';
+    return '<div class="card"><table>'+thead+tbody+'</table></div>';
+  }
+  function activeRange(){ return document.querySelector('.pill.active')?.dataset.range || '30'; }
+  function rangeFilter(d){ const r=activeRange(); if(r==='all') return d && d<=cutoff; const days=(r==='30'?30:90); const from=new Date(cutoff); from.setDate(from.getDate()-days); return d && d>=from && d<=cutoff; }
+  function applySearch(arr){ const q=($('#q').value||'').toLowerCase(); if(!q) return arr; return arr.filter(x=> String(x.det||'').toLowerCase().includes(q)); }
+  function renderTables(){
+    const rowsDep = applySearch(dep).filter(x=>rangeFilter(x.data)).map(x=>[fmtDate(x.data), fmtBRL(x.valor), escapeHTML(x.det)]);
+    const rowsR1  = applySearch(r1 ).filter(x=>rangeFilter(x.data)).map(x=>[fmtDate(x.data), fmtBRL(x.valor), escapeHTML(x.det)]);
+    const rowsR2  = applySearch(r2 ).filter(x=>rangeFilter(x.data)).map(x=>[fmtDate(x.data), fmtBRL(x.valor), escapeHTML(x.det)]);
+    $('#t-depositos').innerHTML = tableHTML(['Data','Valor','Detalhe'], rowsDep);
+    $('#t-rend1').innerHTML     = tableHTML(['Data','Rendimento','Detalhe'], rowsR1);
+    $('#t-rend2').innerHTML     = tableHTML(['Data','Rendimento','Detalhe'], rowsR2);
+  }
+
+  // ===== INTERAÇÕES =====
+  document.querySelectorAll('.tab').forEach(t=> t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    const id=t.dataset.tab;
+    $('#t-depositos').style.display = (id==='depositos')? 'block':'none';
+    $('#t-rend1').style.display     = (id==='rend1')? 'block':'none';
+    $('#t-rend2').style.display     = (id==='rend2')? 'block':'none';
+    renderTables();
+  }));
+  document.querySelectorAll('.pill').forEach(p=> p.addEventListener('click', ()=>{
+    document.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
+    p.classList.add('active');
+    renderTables();
+  }));
+  $('#q').addEventListener('input', renderTables);
+  $('#refresh').addEventListener('click', async ()=>{ await boot(true); });
+
+  // ===== BOOT =====
+  async function boot(force){
+    // Carrega tudo e renderiza
+    await loadControle();
+    await Promise.all([loadDepositos(), loadRend1(), loadRend2()]);
+    // Estado inicial das TABS / PILLS
+    if(!force){
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      document.querySelector('.tab[data-tab="depositos"]').classList.add('active');
+      document.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
+      document.querySelector('.pill[data-range="30"]').classList.add('active');
+      $('#t-depositos').style.display='block';
+      $('#t-rend1').style.display='none';
+      $('#t-rend2').style.display='none';
+    }
+    renderTables();
+  }
+})();
+</script>
+</body>
+</html>
