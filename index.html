@@ -75,7 +75,234 @@
   </div>
 
 <script>
-// (Código JavaScript omitido aqui para brevidade, mas será incluído no arquivo final.)
+/** ===== CONFIG ===== */
+const PUB_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSSTZeX26G70f5Xd9WyqZkLE4kjkL4qUUVdpHGras3NWUqjHvRPEY62NB8IzPGpgZmIKbekFDD7gxfg";
+const GVIZ = (sheetName) => `${PUB_BASE}/gviz/tq?sheet=${encodeURIComponent(sheetName)}&tqx=out:json`;
+
+// Nomes exatos das abas
+const SHEET_CONTROLE = "Controle";
+const SHEET_DEPOSITOS = "Depósitos";
+const SHEET_REND1 = "Rendimentos - Investimento 1";
+const SHEET_REND2 = "Rendimentos - Investimento 2";
+
+const fmtBRL = new Intl.NumberFormat('pt-BR',{ style:'currency', currency:'BRL', minimumFractionDigits:2, maximumFractionDigits:2 });
+const fmtDate = (d) => new Date(d.getTime() - d.getTimezoneOffset()*60000).toLocaleDateString('pt-BR');
+
+function todayAtMidnight() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+/** ===== HELPERS ===== */
+async function fetchGViz(sheetName) {
+  const res = await fetch(GVIZ(sheetName), { cache: 'no-store' });
+  const txt = await res.text();
+  const m = txt.match(/setResponse\\(([\\s\\S]+)\\)\\s*;?\\s*$/);
+  if (!m) throw new Error("Resposta GViz inválida (" + sheetName + ")");
+  return JSON.parse(m[1]);
+}
+
+function gvizToObjects(gviz) {
+  const cols = (gviz.table.cols || []).map(c => (c.label || c.id || "").trim());
+  return (gviz.table.rows || []).map(r => {
+    const o = {};
+    (r.c || []).forEach((cell, idx) => {
+      const label = cols[idx] || \`col\${idx}\`;
+      if (!cell) { o[label] = null; return; }
+      const v = ('v' in cell && cell.v !== null) ? cell.v : (('f' in cell) ? cell.f : null);
+      o[label] = v;
+    });
+    return o;
+  });
+}
+
+function toNumberPT(s) {
+  if (s == null) return NaN;
+  const str = String(s).replace(/\\./g,'').replace(/,/g,'.').replace(/[^\\d\\.\\-]/g,'');
+  const n = parseFloat(str);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function parseDateMaybe(v) {
+  if (v == null) return null;
+  if (typeof v === 'string') {
+    const m = v.match(/Date\\((\\d+),\\s*(\\d+),\\s*(\\d+)/);
+    if (m) return new Date(Number(m[1]), Number(m[2]), Number(m[3]));
+    const d = new Date(v);
+    if (!isNaN(d)) return d;
+  }
+  if (v instanceof Date) return v;
+  if (typeof v === 'number') {
+    const d = new Date(v);
+    if (!isNaN(d)) return d;
+  }
+  return null;
+}
+
+function filterUntilToday(rows, dateKey) {
+  const today = todayAtMidnight();
+  return rows.filter(r => {
+    const d = parseDateMaybe(r[dateKey]);
+    if (!d) return false;
+    const d0 = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    return d0.getTime() <= today.getTime();
+  });
+}
+
+/** ===== UI BINDINGS ===== */
+const els = {
+  status: document.getElementById('status'),
+  lastUpdate: document.getElementById('lastUpdate'),
+  saldoA1: document.getElementById('saldoA1'),
+  rendA1: document.getElementById('rendA1'),
+  saldoA2: document.getElementById('saldoA2'),
+  rendA2: document.getElementById('rendA2'),
+  valorTotal: document.getElementById('valorTotal'),
+  rendTotal: document.getElementById('rendTotal'),
+  saldoTotal: document.getElementById('saldoTotal'),
+  dataAtual: document.getElementById('dataAtual'),
+  extratoSel: document.getElementById('extratoSel'),
+  tbodyExtrato: document.getElementById('tbodyExtrato'),
+  totalPeriodo: document.getElementById('totalPeriodo'),
+  btnAtualizar: document.getElementById('btnAtualizar'),
+};
+
+let cacheData = {
+  controle: null, depositos: null, rend1: null, rend2: null
+};
+
+function setStatus(msg, ok, isError) {
+  els.status.textContent = msg;
+  els.status.className = "muted" + (isError ? " error" : (ok ? " success" : ""));
+}
+
+/** ===== RENDER CONTROLE (colunas) ===== */
+function renderControleColumns(rows) {
+  if (!rows || !rows.length) {
+    els.saldoA1.textContent = els.rendA1.textContent = els.saldoA2.textContent = "—";
+    els.rendA2.textContent = els.valorTotal.textContent = els.rendTotal.textContent = "—";
+    els.saldoTotal.textContent = els.dataAtual.textContent = "—";
+    return;
+  }
+  // pega a última linha não-vazia
+  let last = rows.slice().reverse().find(r => r && Object.values(r).some(x => x !== null && String(x).trim() !== ""));
+  if (!last) last = rows[rows.length - 1];
+
+  const vA1 = last["Aplicação 1"];
+  const rA1 = last["Rendimento 1"];
+  const vA2 = last["Aplicação 2"];
+  const rA2 = last["Rendimento 2"];
+  const vTotal = last["Total"];
+  const rTotal = last["Rendimento Total"];
+  const d = parseDateMaybe(last["Data"]) || new Date();
+
+  const nA1 = (typeof vA1 === 'number') ? vA1 : toNumberPT(vA1);
+  const nRA1 = (typeof rA1 === 'number') ? rA1 : toNumberPT(rA1);
+  const nA2 = (typeof vA2 === 'number') ? vA2 : toNumberPT(vA2);
+  const nRA2 = (typeof rA2 === 'number') ? rA2 : toNumberPT(rA2);
+  const nTot = (typeof vTotal === 'number') ? vTotal : toNumberPT(vTotal);
+  const nRTot = (typeof rTotal === 'number') ? rTotal : toNumberPT(rTotal);
+
+  els.saldoA1.textContent = Number.isFinite(nA1) ? fmtBRL.format(nA1) : "—";
+  els.rendA1.textContent  = Number.isFinite(nRA1) ? fmtBRL.format(nRA1) : "—";
+  els.saldoA2.textContent = Number.isFinite(nA2) ? fmtBRL.format(nA2) : "—";
+  els.rendA2.textContent  = Number.isFinite(nRA2) ? fmtBRL.format(nRA2) : "—";
+  els.valorTotal.textContent = Number.isFinite(nTot) ? fmtBRL.format(nTot) : "—";
+  els.rendTotal.textContent  = Number.isFinite(nRTot) ? fmtBRL.format(nRTot) : "—";
+  // Saldo total == Total (para efeito visual)
+  els.saldoTotal.textContent = Number.isFinite(nTot) ? fmtBRL.format(nTot) : "—";
+  els.dataAtual.textContent  = fmtDate(d);
+}
+
+/** ===== RENDER EXTRATOS (Data + Valor) ===== */
+function renderExtrato(rows, dateCol, valueCol) {
+  els.tbodyExtrato.innerHTML = "";
+  if (!rows || !rows.length) {
+    els.tbodyExtrato.innerHTML = `<tr><td colspan="2" class="muted">Sem lançamentos até hoje.</td></tr>`;
+    els.totalPeriodo.textContent = fmtBRL.format(0);
+    return;
+  }
+
+  const filtered = filterUntilToday(rows, dateCol);
+  if (!filtered.length) {
+    els.tbodyExtrato.innerHTML = `<tr><td colspan="2" class="muted">Sem lançamentos até hoje.</td></tr>`;
+    els.totalPeriodo.textContent = fmtBRL.format(0);
+    return;
+  }
+
+  filtered.sort((a,b) => parseDateMaybe(a[dateCol]) - parseDateMaybe(b[dateCol]));
+
+  let total = 0;
+  const frag = document.createDocumentFragment();
+  for (const r of filtered) {
+    const d = parseDateMaybe(r[dateCol]);
+    const raw = r[valueCol];
+    const n = (typeof raw === 'number') ? raw : toNumberPT(raw);
+    if (!d || !Number.isFinite(n)) continue;
+    total += n;
+
+    const tr = document.createElement('tr');
+    const tdD = document.createElement('td');
+    const tdV = document.createElement('td');
+    tdD.textContent = fmtDate(d);
+    tdV.textContent = fmtBRL.format(n);
+    tr.appendChild(tdD); tr.appendChild(tdV);
+    frag.appendChild(tr);
+  }
+  if (!frag.childNodes.length) {
+    els.tbodyExtrato.innerHTML = `<tr><td colspan="2" class="muted">Sem lançamentos até hoje.</td></tr>`;
+  } else {
+    els.tbodyExtrato.appendChild(frag);
+  }
+  els.totalPeriodo.textContent = fmtBRL.format(total);
+}
+
+function renderExtratoCurrent() {
+  const which = els.extratoSel.value;
+  if (which === 'depositos') {
+    // Depósitos: Data + Depósito
+    renderExtrato(cacheData.depositos || [], "Data", "Depósito");
+  } else if (which === 'rend1') {
+    // Rend 1: Data + Rendimento
+    renderExtrato(cacheData.rend1 || [], "Data", "Rendimento");
+  } else if (which === 'rend2') {
+    renderExtrato(cacheData.rend2 || [], "Data", "Rendimento");
+  }
+}
+
+/** ===== LOAD ===== */
+async function loadAll() {
+  setStatus("Carregando dados…");
+  try {
+    const [ctrl, deps, r1, r2] = await Promise.all([
+      fetchGViz(SHEET_CONTROLE),
+      fetchGViz(SHEET_DEPOSITOS),
+      fetchGViz(SHEET_REND1),
+      fetchGViz(SHEET_REND2),
+    ]);
+
+    cacheData.controle = gvizToObjects(ctrl);
+    cacheData.depositos = gvizToObjects(deps);
+    cacheData.rend1 = gvizToObjects(r1);
+    cacheData.rend2 = gvizToObjects(r2);
+
+    renderControleColumns(cacheData.controle);
+    renderExtratoCurrent();
+
+    setStatus("Dados carregados.", true);
+    els.lastUpdate.textContent = "Atualizado agora";
+  } catch (e) {
+    console.error(e);
+    setStatus("Falha ao carregar dados: " + (e && e.message ? e.message : e), false, true);
+    els.tbodyExtrato.innerHTML = `<tr><td colspan="2" class="error">Erro ao carregar dados.</td></tr>`;
+  }
+}
+
+/** ===== EVENTS ===== */
+els.extratoSel.addEventListener('change', renderExtratoCurrent);
+els.btnAtualizar.addEventListener('click', loadAll);
+
+loadAll();
 </script>
 </body>
 </html>
