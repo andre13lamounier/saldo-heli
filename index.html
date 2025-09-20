@@ -8,11 +8,9 @@
     <style>
       :root{
         --bg:#0f172a;         /* navy/azul marinho */
-        --bg-2:#111827;
         --card:#ffffff;
         --muted:#64748b;
         --text:#0f172a;
-        --accent:#1f2937;
         --ring:#0ea5e9;
       }
       *{box-sizing:border-box}
@@ -55,6 +53,12 @@
       select{padding:8px 10px;border:1px solid #e2e8f0;border-radius:10px;background:#fff}
       #app{display:none}
       .hidden{display:none !important}
+      /* Debug panel */
+      #debug{display:none;margin-top:8px}
+      #dbg-pre{max-height:220px;overflow:auto;background:#0b1220;color:#e5e7eb;border-radius:10px;padding:10px;font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace}
+      .ok{color:#16a34a} .bad{color:#b91c1c}
+      .inline-muted{color:#64748b;font-size:12px}
+      .hint{font-size:12px;color:#334155}
     </style>
   </head>
   <body>
@@ -66,9 +70,15 @@
           <div style="font-weight:700;color:#0f172a">Acesso</div>
         </div>
         <div class="field"><label>Email</label><input id="email" inputmode="email" placeholder="seu@email.com"></div>
-        <div class="field" style="margin-top:10px"><label>Senha</label><input id="pass" type="password" placeholder="••••••••"></div>
+        <div class="field" style="margin-top:10px">
+          <label>Senha</label>
+          <div class="row"><input id="pass" type="password" placeholder="••••••••" style="flex:1"><label class="hint"><input id="showpass" type="checkbox" style="margin-right:6px">mostrar</label></div>
+        </div>
         <div id="err" class="error" style="min-height:18px;margin-top:6px"></div>
-        <button id="go" class="btn primary" style="width:100%;margin-top:6px">Entrar</button>
+        <div class="row" style="gap:8px;margin-top:6px">
+          <button id="go" class="btn primary" style="flex:1">Entrar</button>
+          <button id="autofill" class="btn" title="Preencher credenciais">Autopreencher</button>
+        </div>
         <div class="muted" style="font-size:12px;margin-top:10px">Login simples para acesso básico.</div>
       </div>
     </section>
@@ -90,6 +100,7 @@
               <button class="pill" data-range="30">30 dias</button>
             </div>
             <button id="refresh" class="btn icon" title="Atualizar agora">↻ Atualizar</button>
+            <button id="toggle-debug" class="btn">Debug</button>
             <button id="logout" class="btn ghost">Sair</button>
           </div>
         </div>
@@ -115,21 +126,56 @@
 
         <!-- TABELAS -->
         <div class="section"><div class="muted" style="text-transform:uppercase;letter-spacing:.06em;font-size:12px">Extratos</div></div>
-
         <div id="t-depositos"></div>
         <div id="t-rend1" class="hidden"></div>
         <div id="t-rend2" class="hidden"></div>
+
+        <!-- DEBUG PANEL -->
+        <div id="debug" class="container">
+          <div class="card">
+            <div class="row space-between" style="margin-bottom:6px">
+              <strong>Diagnóstico</strong>
+              <div class="row" style="gap:6px">
+                <button id="diag-run" class="btn">Rodar diagnóstico</button>
+                <button id="diag-clear-auth" class="btn">Limpar login</button>
+              </div>
+            </div>
+            <div class="hint" style="margin-bottom:6px">Use <span class="inline-muted">?debug=1</span> na URL para abrir este painel automaticamente.</div>
+            <ul id="diag-status" class="muted" style="padding-left:18px"></ul>
+            <pre id="dbg-pre"></pre>
+          </div>
+        </div>
       </main>
     </div>
 
     <script>
 (function(){
+  // ====== DEBUG infra ======
+  const initialDebug = /[?&]debug=1/.test(location.search) || (localStorage.getItem('pa_debug')==='1');
+  window.DEBUG = initialDebug;
+  const LOGS = [];
+  function log(){
+    const msg = Array.from(arguments).map(x=> (typeof x==='object'? JSON.stringify(x): String(x))).join(' ');
+    LOGS.push({t:new Date(), msg});
+    if(window.DEBUG) console.log('[APP]', msg);
+    const pre = document.getElementById('dbg-pre');
+    if(pre){
+      pre.textContent = LOGS.map(l=>`[${l.t.toLocaleTimeString('pt-BR')}] ${l.msg}`).join('\\n');
+      pre.scrollTop = pre.scrollHeight;
+    }
+  }
+  function setDebug(v){
+    window.DEBUG = !!v;
+    localStorage.setItem('pa_debug', v? '1':'0');
+    document.getElementById('debug').style.display = v? 'block':'none';
+    document.getElementById('toggle-debug').classList.toggle('primary', v);
+  }
+
   // ====== LOGIN (hardcoded, simples) ======
   const LOGIN_EMAIL='lamounier16@gmail.com';
   const LOGIN_PASS ='helilamounier16';
 
   // ====== PLANILHA PUBLICADA (CSV por aba) ======
-  // Ajuste o ID se trocar de planilha. As abas já estão corretas.
   const CSV_BASE='https://docs.google.com/spreadsheets/d/e/2PACX-1vSSTZeX26G70f5Xd9WyqZkLE4kjkL4qUUVdpHGras3NWUqjHvRPEY62NB8IzPGpgZmIKbekFDD7gxfg/pub?output=csv&single=true&sheet=';
   const SHEETS={
     controle:'Controle',
@@ -144,29 +190,55 @@
 
   function showLogin(){$('#login').style.display='block';$('#app').style.display='none';}
   function showApp(){$('#login').style.display='none';$('#app').style.display='block';}
+
   function saveAuth(){try{localStorage.setItem('pa_auth','1')}catch(e){}}
   function clearAuth(){try{localStorage.removeItem('pa_auth')}catch(e){}}
   function hasAuth(){try{return localStorage.getItem('pa_auth')==='1'}catch(e){return false}}
 
   window.addEventListener('DOMContentLoaded',()=>{
+    setDebug(initialDebug);
     if(hasAuth()){showApp();ensureBoot();}else{showLogin();}
-    const onEnter=(ev)=>{if(ev.key==='Enter'){tryLogin();}};
+    const onEnter=(ev)=>{ if(ev.key==='Enter'){ tryLogin(); } };
     $('#email').addEventListener('keydown',onEnter);
     $('#pass').addEventListener('keydown',onEnter);
+    $('#showpass').addEventListener('change', (e)=> { $('#pass').type = e.target.checked? 'text':'password'; });
+    $('#autofill').addEventListener('click', ()=> { $('#email').value = LOGIN_EMAIL; $('#pass').value = LOGIN_PASS; });
+    $('#toggle-debug').addEventListener('click', ()=> setDebug(!window.DEBUG));
+    $('#diag-clear-auth').addEventListener('click', ()=> { clearAuth(); alert('Login limpo. Recarregue e entre novamente.'); });
+    $('#diag-run').addEventListener('click', runDiagnostics);
   });
+
   function tryLogin(){
     const e=($('#email').value||'').trim().toLowerCase();
     const p=($('#pass').value||'').trim();
-    if(e===LOGIN_EMAIL.toLowerCase() && p===LOGIN_PASS){saveAuth();$('#err').textContent='';showApp();ensureBoot();}
-    else{$('#err').textContent='Credenciais inválidas';}
+    log('Tentando login com', e? ('email:'+e): 'email:vazio');
+    if(!e){ $('#err').textContent='Informe o email.'; return; }
+    if(!p){ $('#err').textContent='Informe a senha.'; return; }
+    if(e!==LOGIN_EMAIL.toLowerCase()){
+      $('#err').textContent='Email diferente do cadastrado.';
+      log('Falha: email não confere');
+      return;
+    }
+    if(p!==LOGIN_PASS){
+      $('#err').textContent='Senha incorreta.';
+      log('Falha: senha não confere');
+      return;
+    }
+    saveAuth();
+    $('#err').textContent='';
+    log('Login OK');
+    showApp();
+    ensureBoot();
   }
+
   $('#go').addEventListener('click',tryLogin);
   $('#logout').addEventListener('click',()=>{clearAuth();location.reload();});
-  function ensureBoot(){ if(!booted){ booted=true; boot(); } }
+
+  function ensureBoot(){ if(!booted){ booted=true; boot().catch(err=>{ log('Erro no boot:', err); }); } }
 
   // ====== CSV helpers ======
   function parseCSV(text){
-    const lines=text.replace(/\r/g,'').split(/\n+/).filter(Boolean);
+    const lines=text.replace(/\\r/g,'').split(/\\n+/).filter(Boolean);
     const rows=lines.map(line=>{
       const out=[];let cur='';let q=false;
       for(let i=0;i<line.length;i++){
@@ -187,22 +259,23 @@
   }
   async function fetchSheet(sheet){
     const url=CSV_BASE+encodeURIComponent(sheet)+'&ts='+Date.now();
+    log('GET', url);
     const res=await fetch(url);
-    if(!res.ok){return{cols:[],rows:[]}};
+    if(!res.ok){ throw new Error('HTTP '+res.status+' ao buscar '+sheet); }
     const txt=await res.text();
     return parseCSV(txt);
   }
 
   // ====== util ======
-  const norm=s=>(s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
+  const norm=s=>(s||'').toString().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().trim().replace(/\\s+/g,' ');
   const findIndex=(cols,cands)=>{const C=cols.map(norm);for(const c of cands){const i=C.indexOf(norm(c));if(i>=0)return i;}return -1;};
   function toDate(s){
     if(!s) return null;
     if(s instanceof Date) return s;
     if(typeof s==='string'){
-      s = s.replace(/\u00A0/g,' ').trim(); // remove NBSP
+      s = s.replace(/\\u00A0/g,' ').trim(); // remove NBSP
       const only = s.split(' ')[0];
-      const m = only.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+      const m = only.match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{2,4})$/);
       if(m){
         const dd=+m[1], mm=+m[2]-1, yy=(+m[3]<100?2000+(+m[3]):+m[3]);
         return new Date(yy,mm,dd);
@@ -212,7 +285,7 @@
   }
   function fmtBRL(n){
     if(n==null||n==='') return '—';
-    const num=parseFloat(String(n).replace(/[^0-9\-.,]/g,'').replace(/\./g,'').replace(',', '.'));
+    const num=parseFloat(String(n).replace(/[^0-9\\-.,]/g,'').replace(/\\./g,'').replace(',', '.'));
     if(isNaN(num)) return String(n);
     return num.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
   }
@@ -221,11 +294,13 @@
     const dd=String(d.getDate()).padStart(2,'0'), mm=String(d.getMonth()+1).padStart(2,'0'), yy=d.getFullYear();
     return `${dd}/${mm}/${yy}`;
   }
-  function escapeHTML(s){ return String(s).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",""":"&quot;","'":"&#39;"}[m])); }
+  function escapeHTML(s){ return String(s).replace(/[&<>\"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
 
   // ====== CONTROLE (cards) ======
   async function loadControle(){
+    log('loadControle…');
     const g=await fetchSheet(SHEETS.controle);
+    log('controle: linhas', g.rows.length);
     if(!g.rows.length) return;
     const c=g.cols, r=g.rows[0];
     const ix={
@@ -250,7 +325,9 @@
 
   // ====== DEPÓSITOS ======
   async function loadDepositos(){
+    log('loadDepositos…');
     const g=await fetchSheet(SHEETS.depositos);
+    log('dep: linhas', g.rows.length);
     if(!g.rows.length){dep=[];return;}
     const c=g.cols; const ix={data:findIndex(c,['data']),valor:findIndex(c,['depósito','deposito']),detalhe:findIndex(c,['detalhe'])};
     dep=g.rows.map(r=>({data:toDate(r[ix.data]),valor:r[ix.valor],det: ix.detalhe>=0?(r[ix.detalhe]||''):''}))
@@ -259,17 +336,19 @@
 
   // ====== RENDIMENTOS — APENAS DATA E VALOR ======
   async function loadRend1(){
+    log('loadRend1…');
     const g=await fetchSheet(SHEETS.rend1);
+    log('rend1: linhas', g.rows.length);
     if(!g.rows.length){r1=[];return;}
     const c=g.cols; const ix={data:findIndex(c,['data']),valor:findIndex(c,['rendimento'])};
-    // sem filtro de futuros (você já removeu na planilha)
     r1=g.rows.map(r=>({data:toDate(r[ix.data]),valor:r[ix.valor]})).filter(x=>x.data);
   }
   async function loadRend2(){
+    log('loadRend2…');
     const g=await fetchSheet(SHEETS.rend2);
+    log('rend2: linhas', g.rows.length);
     if(!g.rows.length){r2=[];return;}
     const c=g.cols; const ix={data:findIndex(c,['data']),valor:findIndex(c,['rendimento'])};
-    // sem filtro de futuros (você já removeu na planilha)
     r2=g.rows.map(r=>({data:toDate(r[ix.data]),valor:r[ix.valor]})).filter(x=>x.data);
   }
 
@@ -284,7 +363,6 @@
   function renderTables(){
     const range=$('.pill.active').dataset.range;
     const view=$('#view').value;
-
     function inRange(d){
       if(!d||!cutoff) return false;
       if(range==='all') return d<=cutoff;
@@ -292,12 +370,10 @@
       const from=new Date(cutoff); from.setDate(from.getDate()-days);
       return d>=from && d<=cutoff;
     }
-
     const depRows = dep.filter(x=>inRange(x.data)).map(x=>[fmtDate(x.data), fmtBRL(x.valor), escapeHTML(x.det)]);
     const r1Rows  = r1.filter(x=>inRange(x.data)).map(x=>[fmtDate(x.data), fmtBRL(x.valor)]);
     const r2Rows  = r2.filter(x=>inRange(x.data)).map(x=>[fmtDate(x.data), fmtBRL(x.valor)]);
 
-    // fallback: se vista ficar vazia para o período, volta para "Todo período"
     let rowsForView = view==='depositos'?depRows : view==='rend1'?r1Rows : r2Rows;
     if(range!=='all' && rowsForView.length===0){
       $$('.pill').forEach(x=>x.classList.remove('active'));
@@ -324,16 +400,49 @@
 
   // ====== Boot ======
   async function boot(force){
-    await loadControle();
-    await Promise.all([loadDepositos(),loadRend1(),loadRend2()]);
-    if(!force){
-      $('#view').value='depositos';
-      $$('.pill').forEach(x=>x.classList.remove('active'));
-      $('.pill[data-range="all"]').classList.add('active');
+    try{
+      log('Boot iniciado');
+      await loadControle();
+      await Promise.all([loadDepositos(),loadRend1(),loadRend2()]);
+      if(!force){
+        $('#view').value='depositos';
+        $$('.pill').forEach(x=>x.classList.remove('active'));
+        $('.pill[data-range="all"]').classList.add('active');
+      }
+      renderTables();
+      log('Boot concluído');
+    }catch(err){
+      log('Boot falhou:', err.message||String(err));
+      const ul=document.getElementById('diag-status');
+      if(ul){ ul.innerHTML += `<li class="bad">Erro no boot: ${escapeHTML(err.message||String(err))}</li>`; }
     }
-    renderTables();
   }
-})();
-    </script>
+
+  // ====== Diagnostics ======
+  async function runDiagnostics(){
+    const ul=document.getElementById('diag-status');
+    ul.innerHTML='';
+    function add(li, ok){ ul.innerHTML += `<li class="${ok?'ok':'bad'}">${li}</li>`; }
+    try{
+      add('Iniciando diagnóstico…', true);
+      // Ping nas 4 abas
+      for(const [key,name] of Object.entries(SHEETS)){
+        try{
+          const g = await fetchSheet(name);
+          add(`Aba “${name}”: OK (${g.rows.length} linhas)`, true);
+        }catch(e){
+          add(`Aba “${name}”: ERRO — ${escapeHTML(e.message||String(e))}`, false);
+        }
+      }
+      // Check sessão
+      add('Sessão: '+(hasAuth()? 'logado':'não logado'), hasAuth());
+      add('Data de corte (Controle): '+(cutoff? cutoff.toLocaleDateString('pt-BR'):'—'), !!cutoff);
+      log('Diagnóstico finalizado');
+    }catch(e){
+      add('Diagnóstico falhou: '+escapeHTML(e.message||String(e)), false);
+    }
+  }
+
+})();</script>
   </body>
 </html>
