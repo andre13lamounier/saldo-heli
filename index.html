@@ -136,21 +136,25 @@
   async function fetchSheet(sheet){
     const url=CSV_BASE+encodeURIComponent(sheet)+'&ts='+Date.now();
     const res=await fetch(url);
-    if(!res.ok){return{cols:[],rows:[]}}
+    if(!res.ok){console.warn('fetch fail', sheet, res.status);return{cols:[],rows:[]}}
     const txt=await res.text();
     return parseCSV(txt);
   }
 
-  const norm=s=>(s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
+  // === normalização robusta (remove NBSP, acentos, espaços, case) ===
+  const norm=s=>(s||'').toString().replace(/\u00A0/g,' ').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
   const findIndex=(cols,cands)=>{const C=cols.map(norm);for(const c of cands){const i=C.indexOf(norm(c));if(i>=0)return i;}return -1;};
+
   function toDate(s){
     if(!s) return null;
     if(s instanceof Date) return s;
     if(typeof s==='string'){
       s = s.replace(/\u00A0/g,' ').trim();
-      const only = s.split(' ')[0]; // ignora hora, se houver
-      const m = only.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+      const only = s.split(' ')[0];
+      let m = only.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
       if(m){ const dd=+m[1], mm=+m[2]-1, yy=(+m[3]<100?2000+(+m[3]):+m[3]); return new Date(yy,mm,dd); }
+      m = only.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
+      if(m){ const yy=+m[1], mm=+m[2]-1, dd=+m[3]; return new Date(yy,mm,dd); }
     }
     return null;
   }
@@ -173,26 +177,34 @@
     $('#rend2').textContent=fmtBRL(r[ix.rend2]);
     $('#updated').textContent='Atualizado em '+fmtDate(dA2);
   }
+
+  // fallback de índices (caso header mude/venha com NBSP)
   async function loadDepositos(){
     const g=await fetchSheet(SHEETS.depositos);
     if(!g.rows.length){dep=[];return;}
-    const c=g.cols; const ix={data:findIndex(c,['data']),valor:findIndex(c,['depósito','deposito']),detalhe:findIndex(c,['detalhe'])};
+    const c=g.cols; const idx=(cand,fb)=>{const i=findIndex(c,cand);return i>=0?i:fb;};
+    const ix={data:idx(['data'],0),valor:idx(['depósito','deposito'],1),detalhe:idx(['detalhe'],4)};
     dep=g.rows.map(r=>({data:toDate(r[ix.data]),valor:r[ix.valor],det: ix.detalhe>=0?(r[ix.detalhe]||''):''}))
               .filter(x=>x.data && x.data<=cutoff);
+    console.info('[DEP] linhas:', dep.length);
   }
   async function loadRend1(){
     const g=await fetchSheet(SHEETS.rend1);
     if(!g.rows.length){r1=[];return;}
-    const c=g.cols; const ix={data:findIndex(c,['data']),valor:findIndex(c,['rendimento']),detalhe:findIndex(c,['detalhe'])};
+    const c=g.cols; const idx=(cand,fb)=>{const i=findIndex(c,cand);return i>=0?i:fb;};
+    const ix={data:idx(['data'],0),valor:idx(['rendimento'],3),detalhe:idx(['detalhe'],5)};
     r1=g.rows.map(r=>({data:toDate(r[ix.data]),valor:r[ix.valor],det: ix.detalhe>=0?(r[ix.detalhe]||''):''}))
              .filter(x=>x.data && x.data<=cutoff);
+    console.info('[R1] linhas:', r1.length);
   }
   async function loadRend2(){
     const g=await fetchSheet(SHEETS.rend2);
     if(!g.rows.length){r2=[];return;}
-    const c=g.cols; const ix={data:findIndex(c,['data']),valor:findIndex(c,['rendimento']),detalhe:findIndex(c,['detalhe'])};
+    const c=g.cols; const idx=(cand,fb)=>{const i=findIndex(c,cand);return i>=0?i:fb;};
+    const ix={data:idx(['data'],0),valor:idx(['rendimento'],3),detalhe:idx(['detalhe'],5)};
     r2=g.rows.map(r=>({data:toDate(r[ix.data]),valor:r[ix.valor],det: ix.detalhe>=0?(r[ix.detalhe]||''):''}))
              .filter(x=>x.data && x.data<=cutoff);
+    console.info('[R2] linhas:', r2.length);
   }
 
   function tableHTML(headers, rows){
@@ -213,7 +225,6 @@
     const r1Rows  = search(r1 ).filter(x=>inRange(x.data)).map(x=>[fmtDate(x.data), fmtBRL(x.valor), escapeHTML(x.det)]);
     const r2Rows  = search(r2 ).filter(x=>inRange(x.data)).map(x=>[fmtDate(x.data), fmtBRL(x.valor), escapeHTML(x.det)]);
 
-    // fallback automático se a vista atual não tiver linhas no período escolhido
     let rowsForView = view==='depositos'?depRows : view==='rend1'?r1Rows : r2Rows;
     if(range!=='all' && rowsForView.length===0){
       $$('.pill').forEach(x=>x.classList.remove('active'));
@@ -230,7 +241,6 @@
     $('#t-rend2').innerHTML     = tableHTML(['Data','Rendimento','Detalhe'], r2Rows);
   }
 
-  // Interações
   $$('.pill').forEach(p=> p.addEventListener('click',()=>{ $$('.pill').forEach(x=>x.classList.remove('active')); p.classList.add('active'); renderTables(); }));
   $('#q').addEventListener('input',renderTables);
   $('#view').addEventListener('change',renderTables);
