@@ -79,7 +79,6 @@
 const PUB_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSSTZeX26G70f5Xd9WyqZkLE4kjkL4qUUVdpHGras3NWUqjHvRPEY62NB8IzPGpgZmIKbekFDD7gxfg";
 const GVIZ = (sheetName) => `${PUB_BASE}/gviz/tq?sheet=${encodeURIComponent(sheetName)}&tqx=out:json`;
 
-// Nomes exatos das abas
 const SHEET_CONTROLE = "Controle";
 const SHEET_DEPOSITOS = "Depósitos";
 const SHEET_REND1 = "Rendimentos - Investimento 1";
@@ -95,10 +94,13 @@ function todayAtMidnight() {
 
 /** ===== HELPERS ===== */
 async function fetchGViz(sheetName) {
-  const res = await fetch(GVIZ(sheetName), { cache: 'no-store' });
+  const url = GVIZ(sheetName);
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`HTTP ${res.status} ao buscar ${sheetName}`);
   const txt = await res.text();
-  const m = txt.match(/setResponse\\(([\\s\\S]+)\\)\\s*;?\\s*$/);
-  if (!m) throw new Error("Resposta GViz inválida (" + sheetName + ")");
+  // regex CORRETO (sem barras invertidas duplicadas)
+  const m = txt.match(/setResponse\((.*)\)\s*;?\s*$/s);
+  if (!m) throw new Error("Resposta GViz inválida (" + sheetName + "). Verifique se a planilha está 'Publicada na Web' e se o nome da aba está correto.");
   return JSON.parse(m[1]);
 }
 
@@ -107,7 +109,7 @@ function gvizToObjects(gviz) {
   return (gviz.table.rows || []).map(r => {
     const o = {};
     (r.c || []).forEach((cell, idx) => {
-      const label = cols[idx] || \`col\${idx}\`;
+      const label = cols[idx] || `col${idx}`;
       if (!cell) { o[label] = null; return; }
       const v = ('v' in cell && cell.v !== null) ? cell.v : (('f' in cell) ? cell.f : null);
       o[label] = v;
@@ -118,7 +120,7 @@ function gvizToObjects(gviz) {
 
 function toNumberPT(s) {
   if (s == null) return NaN;
-  const str = String(s).replace(/\\./g,'').replace(/,/g,'.').replace(/[^\\d\\.\\-]/g,'');
+  const str = String(s).replace(/\./g,'').replace(/,/g,'.').replace(/[^\d\.\-]/g,'');
   const n = parseFloat(str);
   return Number.isFinite(n) ? n : NaN;
 }
@@ -126,7 +128,7 @@ function toNumberPT(s) {
 function parseDateMaybe(v) {
   if (v == null) return null;
   if (typeof v === 'string') {
-    const m = v.match(/Date\\((\\d+),\\s*(\\d+),\\s*(\\d+)/);
+    const m = v.match(/Date\((\d+),\s*(\d+),\s*(\d+)\)/);
     if (m) return new Date(Number(m[1]), Number(m[2]), Number(m[3]));
     const d = new Date(v);
     if (!isNaN(d)) return d;
@@ -167,16 +169,14 @@ const els = {
   btnAtualizar: document.getElementById('btnAtualizar'),
 };
 
-let cacheData = {
-  controle: null, depositos: null, rend1: null, rend2: null
-};
+let cacheData = { controle: null, depositos: null, rend1: null, rend2: null };
 
 function setStatus(msg, ok, isError) {
   els.status.textContent = msg;
   els.status.className = "muted" + (isError ? " error" : (ok ? " success" : ""));
 }
 
-/** ===== RENDER CONTROLE (colunas) ===== */
+/** ===== RENDER CONTROLE ===== */
 function renderControleColumns(rows) {
   if (!rows || !rows.length) {
     els.saldoA1.textContent = els.rendA1.textContent = els.saldoA2.textContent = "—";
@@ -209,12 +209,11 @@ function renderControleColumns(rows) {
   els.rendA2.textContent  = Number.isFinite(nRA2) ? fmtBRL.format(nRA2) : "—";
   els.valorTotal.textContent = Number.isFinite(nTot) ? fmtBRL.format(nTot) : "—";
   els.rendTotal.textContent  = Number.isFinite(nRTot) ? fmtBRL.format(nRTot) : "—";
-  // Saldo total == Total (para efeito visual)
   els.saldoTotal.textContent = Number.isFinite(nTot) ? fmtBRL.format(nTot) : "—";
   els.dataAtual.textContent  = fmtDate(d);
 }
 
-/** ===== RENDER EXTRATOS (Data + Valor) ===== */
+/** ===== RENDER EXTRATOS ===== */
 function renderExtrato(rows, dateCol, valueCol) {
   els.tbodyExtrato.innerHTML = "";
   if (!rows || !rows.length) {
@@ -260,10 +259,8 @@ function renderExtrato(rows, dateCol, valueCol) {
 function renderExtratoCurrent() {
   const which = els.extratoSel.value;
   if (which === 'depositos') {
-    // Depósitos: Data + Depósito
     renderExtrato(cacheData.depositos || [], "Data", "Depósito");
   } else if (which === 'rend1') {
-    // Rend 1: Data + Rendimento
     renderExtrato(cacheData.rend1 || [], "Data", "Rendimento");
   } else if (which === 'rend2') {
     renderExtrato(cacheData.rend2 || [], "Data", "Rendimento");
