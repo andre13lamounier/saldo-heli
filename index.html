@@ -48,7 +48,7 @@
     </section>
 
     <section class="row">
-      <label class="muted" for="extratoSel">Extrato:</label>
+      <label class="muted" for="extratoSel">Extratos:</label>
       <select id="extratoSel">
         <option value="depositos">Depósitos</option>
         <option value="rend1">Rendimentos Investimento 1</option>
@@ -75,33 +75,66 @@
   </div>
 
 <script>
+/** ===== BASE ===== */
 const PUB_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSSTZeX26G70f5Xd9WyqZkLE4kjkL4qUUVdpHGras3NWUqjHvRPEY62NB8IzPGpgZmIKbekFDD7gxfg";
-const GVIZ = (sheetName) => `${PUB_BASE}/gviz/tq?sheet=${encodeURIComponent(sheetName)}&tqx=out:json`;
+const GVIZ_GID = (gid) => `${PUB_BASE}/gviz/tq?gid=${encodeURIComponent(gid)}&tqx=out:json`;
+const PUBHTML = `${PUB_BASE}/pubhtml`;
 
-const SHEET_CONTROLE = "Controle";
-const SHEET_DEPOSITOS = "Depósitos";
-const SHEET_REND1 = "Rendimentos Investimento 1";
-const SHEET_REND2 = "Rendimentos Investimento 2";
+/** Abas desejadas (nomes humanos) -> serão mapeadas para GIDs */
+const WANT_SHEETS = {
+  controle: "Controle",
+  depositos: "Depósitos",
+  rend1: "Rendimentos Investimento 1",
+  rend2: "Rendimentos Investimento 2",
+};
 
+/** ===== HELPERS ===== */
 const fmtBRL = new Intl.NumberFormat('pt-BR',{ style:'currency', currency:'BRL', minimumFractionDigits:2, maximumFractionDigits:2 });
 const fmtDate = (d) => new Date(d.getTime() - d.getTimezoneOffset()*60000).toLocaleDateString('pt-BR');
+function todayAtMidnight(){ const n=new Date(); return new Date(n.getFullYear(),n.getMonth(),n.getDate()); }
 
-function todayAtMidnight() {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+function setStatus(msg, ok, isError) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = "muted" + (isError ? " error" : (ok ? " success" : ""));
 }
 
-async function fetchGViz(sheetName) {
-  const url = GVIZ(sheetName);
-  const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) throw new Error(`HTTP ${res.status} ao buscar ${sheetName}`);
-  const txt = await res.text();
-  const m = txt.match(/setResponse\((.*)\)\s*;?\s*$/s);
-  if (!m) throw new Error("Resposta GViz inválida (" + sheetName + "). Verifique se a planilha está 'Publicada na Web' e se o nome da aba está correto.");
+async function fetchText(url){
+  const r = await fetch(url, { cache: 'no-store' });
+  if(!r.ok) throw new Error(`HTTP ${r.status} ao buscar ${url}`);
+  return await r.text();
+}
+
+async function discoverGids(){
+  const html = await fetchText(PUBHTML);
+  // Extrai pares (nome, gid) do HTML publicado.
+  // Padrões possíveis no pubhtml:
+  //  - href="#gid=123456789" ... >Nome da aba<
+  //  - data-gid="123456789" data-sheet-name="Nome da aba"
+  const map = {};
+  // 1) via data-sheet-name + data-gid
+  const reData = /data-gid="(\d+)"[^>]*data-sheet-name="([^"]+)"/g;
+  let m;
+  while((m = reData.exec(html))){
+    map[m[2].trim()] = m[1];
+  }
+  // 2) via links com #gid=... e o texto da aba
+  const reLink = /<a[^>]+href="#gid=(\d+)"[^>]*>(.*?)<\/a>/g;
+  while((m = reLink.exec(html))){
+    const text = m[2].replace(/<[^>]+>/g,'').trim();
+    if(text) map[text] = m[1];
+  }
+  if(Object.keys(map).length === 0) throw new Error("Não foi possível descobrir os GIDs das abas publicadas.");
+  return map;
+}
+
+function parseGVizJSON(text){
+  const m = text.match(/setResponse\((.*)\)\s*;?\s*$/s);
+  if(!m) throw new Error("Resposta GViz inválida.");
   return JSON.parse(m[1]);
 }
 
-function gvizToObjects(gviz) {
+function gvizToObjects(gviz){
   const cols = (gviz.table.cols || []).map(c => (c.label || c.id || "").trim());
   return (gviz.table.rows || []).map(r => {
     const o = {};
@@ -115,42 +148,36 @@ function gvizToObjects(gviz) {
   });
 }
 
-function toNumberPT(s) {
+function toNumberPT(s){
   if (s == null) return NaN;
   const str = String(s).replace(/\./g,'').replace(/,/g,'.').replace(/[^\d\.\-]/g,'');
   const n = parseFloat(str);
   return Number.isFinite(n) ? n : NaN;
 }
 
-function parseDateMaybe(v) {
+function parseDateMaybe(v){
   if (v == null) return null;
   if (typeof v === 'string') {
-    const m = v.match(/Date\((\d+),\s*(\d+),\s*(\d+)\)/);
+    const m = v.match(/Date\((\d+),(\d+),(\d+)\)/);
     if (m) return new Date(Number(m[1]), Number(m[2]), Number(m[3]));
-    const d = new Date(v);
-    if (!isNaN(d)) return d;
+    const d = new Date(v); if (!isNaN(d)) return d;
   }
   if (v instanceof Date) return v;
-  if (typeof v === 'number') {
-    const d = new Date(v);
-    if (!isNaN(d)) return d;
-  }
+  if (typeof v === 'number') { const d=new Date(v); if(!isNaN(d)) return d; }
   return null;
 }
 
-function filterUntilToday(rows, dateKey) {
+function filterUntilToday(rows, dateKey){
   const today = todayAtMidnight();
   return rows.filter(r => {
-    const d = parseDateMaybe(r[dateKey]);
-    if (!d) return false;
+    const d = parseDateMaybe(r[dateKey]); if(!d) return false;
     const d0 = new Date(d.getFullYear(), d.getMonth(), d.getDate());
     return d0.getTime() <= today.getTime();
   });
 }
 
+/** ===== UI refs ===== */
 const els = {
-  status: document.getElementById('status'),
-  lastUpdate: document.getElementById('lastUpdate'),
   saldoA1: document.getElementById('saldoA1'),
   rendA1: document.getElementById('rendA1'),
   saldoA2: document.getElementById('saldoA2'),
@@ -163,21 +190,17 @@ const els = {
   tbodyExtrato: document.getElementById('tbodyExtrato'),
   totalPeriodo: document.getElementById('totalPeriodo'),
   btnAtualizar: document.getElementById('btnAtualizar'),
+  lastUpdate: document.getElementById('lastUpdate'),
 };
 
-let cacheData = { controle: null, depositos: null, rend1: null, rend2: null };
+let GIDS = null;
+let cacheData = { controle:null, depositos:null, rend1:null, rend2:null };
 
-function setStatus(msg, ok, isError) {
-  els.status.textContent = msg;
-  els.status.className = "muted" + (isError ? " error" : (ok ? " success" : ""));
-}
-
-function renderControleColumns(rows) {
-  if (!rows || !rows.length) {
-    return;
-  }
+/** ===== Render controle ===== */
+function renderControleColumns(rows){
+  if(!rows || !rows.length) return;
   let last = rows.slice().reverse().find(r => r && Object.values(r).some(x => x !== null && String(x).trim() !== ""));
-  if (!last) last = rows[rows.length - 1];
+  if(!last) last = rows[rows.length-1];
 
   const vA1 = last["Aplicação 1"];
   const rA1 = last["Rendimento 1"];
@@ -204,76 +227,80 @@ function renderControleColumns(rows) {
   els.dataAtual.textContent  = fmtDate(d);
 }
 
-function renderExtrato(rows, dateCol, valueCol) {
+/** ===== Render extratos ===== */
+function renderExtrato(rows, dateCol, valueCol){
   els.tbodyExtrato.innerHTML = "";
-  if (!rows || !rows.length) {
+  if(!rows || !rows.length){
     els.tbodyExtrato.innerHTML = `<tr><td colspan="2" class="muted">Sem lançamentos até hoje.</td></tr>`;
-    els.totalPeriodo.textContent = fmtBRL.format(0);
-    return;
+    els.totalPeriodo.textContent = fmtBRL.format(0); return;
   }
-
   const filtered = filterUntilToday(rows, dateCol);
-  if (!filtered.length) {
+  if(!filtered.length){
     els.tbodyExtrato.innerHTML = `<tr><td colspan="2" class="muted">Sem lançamentos até hoje.</td></tr>`;
-    els.totalPeriodo.textContent = fmtBRL.format(0);
-    return;
+    els.totalPeriodo.textContent = fmtBRL.format(0); return;
   }
-
-  filtered.sort((a,b) => parseDateMaybe(a[dateCol]) - parseDateMaybe(b[dateCol]));
-
-  let total = 0;
-  const frag = document.createDocumentFragment();
-  for (const r of filtered) {
-    const d = parseDateMaybe(r[dateCol]);
-    const raw = r[valueCol];
-    const n = (typeof raw === 'number') ? raw : toNumberPT(raw);
-    if (!d || !Number.isFinite(n)) continue;
+  filtered.sort((a,b)=>parseDateMaybe(a[dateCol]) - parseDateMaybe(b[dateCol]));
+  let total=0; const frag=document.createDocumentFragment();
+  for(const r of filtered){
+    const d = parseDateMaybe(r[dateCol]); const raw=r[valueCol];
+    const n = (typeof raw==='number')? raw : toNumberPT(raw);
+    if(!d || !Number.isFinite(n)) continue;
     total += n;
-
-    const tr = document.createElement('tr');
-    const tdD = document.createElement('td');
-    const tdV = document.createElement('td');
-    tdD.textContent = fmtDate(d);
-    tdV.textContent = fmtBRL.format(n);
-    tr.appendChild(tdD); tr.appendChild(tdV);
-    frag.appendChild(tr);
+    const tr=document.createElement('tr'); const tdD=document.createElement('td'); const tdV=document.createElement('td');
+    tdD.textContent = fmtDate(d); tdV.textContent = fmtBRL.format(n);
+    tr.appendChild(tdD); tr.appendChild(tdV); frag.appendChild(tr);
   }
-  els.tbodyExtrato.appendChild(frag);
+  if(!frag.childNodes.length){
+    els.tbodyExtrato.innerHTML = `<tr><td colspan="2" class="muted">Sem lançamentos até hoje.</td></tr>`;
+  } else {
+    els.tbodyExtrato.appendChild(frag);
+  }
   els.totalPeriodo.textContent = fmtBRL.format(total);
 }
 
-function renderExtratoCurrent() {
+function renderExtratoCurrent(){
   const which = els.extratoSel.value;
-  if (which === 'depositos') {
-    renderExtrato(cacheData.depositos || [], "Data", "Depósito");
-  } else if (which === 'rend1') {
-    renderExtrato(cacheData.rend1 || [], "Data", "Rendimento");
-  } else if (which === 'rend2') {
-    renderExtrato(cacheData.rend2 || [], "Data", "Rendimento");
-  }
+  if(which==='depositos') renderExtrato(cacheData.depositos||[], "Data", "Depósito");
+  if(which==='rend1')     renderExtrato(cacheData.rend1||[], "Data", "Rendimento");
+  if(which==='rend2')     renderExtrato(cacheData.rend2||[], "Data", "Rendimento");
 }
 
-async function loadAll() {
+/** ===== LOAD ===== */
+async function loadAll(){
   setStatus("Carregando dados…");
-  try {
-    const [ctrl, deps, r1, r2] = await Promise.all([
-      fetchGViz(SHEET_CONTROLE),
-      fetchGViz(SHEET_DEPOSITOS),
-      fetchGViz(SHEET_REND1),
-      fetchGViz(SHEET_REND2),
-    ]);
+  try{
+    if(!GIDS){
+      const discovered = await discoverGids();
+      // Cria mapa amigável -> gid
+      GIDS = {
+        controle: discovered[WANT_SHEETS.controle],
+        depositos: discovered[WANT_SHEETS.depositos],
+        rend1: discovered[WANT_SHEETS.rend1],
+        rend2: discovered[WANT_SHEETS.rend2],
+      };
+      // Validação mínima
+      for(const [k,v] of Object.entries(GIDS)){
+        if(!v) throw new Error(`Não encontrei a aba '${WANT_SHEETS[k]}' na versão publicada.`);
+      }
+    }
 
-    cacheData.controle = gvizToObjects(ctrl);
-    cacheData.depositos = gvizToObjects(deps);
-    cacheData.rend1 = gvizToObjects(r1);
-    cacheData.rend2 = gvizToObjects(r2);
+    const urls = [
+      GVIZ_GID(GIDS.controle),
+      GVIZ_GID(GIDS.depositos),
+      GVIZ_GID(GIDS.rend1),
+      GVIZ_GID(GIDS.rend2),
+    ];
+    const texts = await Promise.all(urls.map(u => fetchText(u)));
+    const jsons = texts.map(parseGVizJSON);
+    const [ctrl,deps,r1,r2] = jsons.map(gvizToObjects);
 
+    cacheData = { controle:ctrl, depositos:deps, rend1:r1, rend2:r2 };
     renderControleColumns(cacheData.controle);
     renderExtratoCurrent();
 
     setStatus("Dados carregados.", true);
     els.lastUpdate.textContent = "Atualizado agora";
-  } catch (e) {
+  }catch(e){
     console.error(e);
     setStatus("Falha ao carregar dados: " + (e && e.message ? e.message : e), false, true);
     els.tbodyExtrato.innerHTML = `<tr><td colspan="2" class="error">Erro ao carregar dados.</td></tr>`;
@@ -282,7 +309,6 @@ async function loadAll() {
 
 els.extratoSel.addEventListener('change', renderExtratoCurrent);
 els.btnAtualizar.addEventListener('click', loadAll);
-
 loadAll();
 </script>
 </body>
