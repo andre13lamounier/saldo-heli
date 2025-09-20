@@ -90,9 +90,9 @@
           <button class="tab" data-tab="rend1">Rend. Aplicação CDI</button>
           <button class="tab" data-tab="rend2">Rend. Conta CDI</button>
         </div>
-        <div class="pill active" data-range="30">Últimos 30 dias</div>
+        <div class="pill" data-range="30">Últimos 30 dias</div>
         <div class="pill" data-range="90">Últimos 90 dias</div>
-        <div class="pill" data-range="all">Tudo</div>
+        <div class="pill active" data-range="all">Tudo</div>
         <div class="search"><input id="q" type="search" placeholder="Buscar por detalhe…" /></div>
       </div>
 
@@ -198,50 +198,30 @@
   function rangeFilter(d){ const r=activeRange(); if(r==='all') return d && d<=cutoff; const days=(r==='30'?30:90); const from=new Date(cutoff); from.setDate(from.getDate()-days); return d && d>=from && d<=cutoff; }
   function applySearch(arr){ const q=($('#q').value||'').toLowerCase(); if(!q) return arr; return arr.filter(x=> String(x.det||'').toLowerCase().includes(q)); }
   function renderTables(){
-    const rowsDep = applySearch(dep).filter(x=>rangeFilter(x.data)).map(x=>[fmtDate(x.data), fmtBRL(x.valor), escapeHTML(x.det)]);
-    const rowsR1  = applySearch(r1 ).filter(x=>rangeFilter(x.data)).map(x=>[fmtDate(x.data), fmtBRL(x.valor), escapeHTML(x.det)]);
-    const rowsR2  = applySearch(r2 ).filter(x=>rangeFilter(x.data)).map(x=>[fmtDate(x.data), fmtBRL(x.valor), escapeHTML(x.det)]);
-    $('#t-depositos').innerHTML = tableHTML(['Data','Valor','Detalhe'], rowsDep);
-    $('#t-rend1').innerHTML     = tableHTML(['Data','Rendimento','Detalhe'], rowsR1);
-    $('#t-rend2').innerHTML     = tableHTML(['Data','Rendimento','Detalhe'], rowsR2);
-  }
+    const range=document.querySelector('.pill.active').dataset.range;
+    const q=($('#q').value||'').toLowerCase();
+    function inRange(d){ if(!d||!cutoff) return false; if(range==='all') return d<=cutoff; const days=(range==='30'?30:90); const from=new Date(cutoff); from.setDate(from.getDate()-days); return d>=from && d<=cutoff; }
+    function search(arr){ if(!q) return arr; return arr.filter(x=> String(x.det||'').toLowerCase().includes(q)); }
 
-  // ===== INTERAÇÕES =====
-  document.querySelectorAll('.tab').forEach(t=> t.addEventListener('click', ()=>{
-    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-    t.classList.add('active');
-    const id=t.dataset.tab;
-    $('#t-depositos').style.display = (id==='depositos')? 'block':'none';
-    $('#t-rend1').style.display     = (id==='rend1')? 'block':'none';
-    $('#t-rend2').style.display     = (id==='rend2')? 'block':'none';
-    renderTables();
-  }));
-  document.querySelectorAll('.pill').forEach(p=> p.addEventListener('click', ()=>{
-    document.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
-    p.classList.add('active');
-    renderTables();
-  }));
-  $('#q').addEventListener('input', renderTables);
-  $('#refresh').addEventListener('click', async ()=>{ await boot(true); });
+    const depRows = search(dep).filter(x=>inRange(x.data)).map(x=>[fmtDate(x.data), fmtBRL(x.valor), escapeHTML(x.det)]);
+    const r1Rows  = search(r1 ).filter(x=>inRange(x.data)).map(x=>[fmtDate(x.data), fmtBRL(x.valor), escapeHTML(x.det)]);
+    const r2Rows  = search(r2 ).filter(x=>inRange(x.data)).map(x=>[fmtDate(x.data), fmtBRL(x.valor), escapeHTML(x.det)]);
 
-  // ===== BOOT =====
-  async function boot(force){
-    // Carrega tudo e renderiza
-    await loadControle();
-    await Promise.all([loadDepositos(), loadRend1(), loadRend2()]);
-    // Estado inicial das TABS / PILLS
-    if(!force){
-      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-      document.querySelector('.tab[data-tab="depositos"]').classList.add('active');
-      document.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
-      document.querySelector('.pill[data-range="30"]').classList.add('active');
-      $('#t-depositos').style.display='block';
-      $('#t-rend1').style.display='none';
-      $('#t-rend2').style.display='none';
+    // auto-fallback para 'Tudo' se não houver resultados no range curto
+    if(range!=='all'){
+      const currentTab = document.querySelector('.tab.active')?.dataset.tab || 'depositos';
+      const zero = (currentTab==='depositos'?depRows.length: currentTab==='rend1'?r1Rows.length: r2Rows.length)===0;
+      if(zero){
+        document.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
+        document.querySelector('.pill[data-range="all"]').classList.add('active');
+        return renderTables();
+      }
     }
-    renderTables();
-  }
-})();
+
+    $('#t-depositos').innerHTML = tableHTML(['Data','Valor','Detalhe'], depRows);
+    $('#t-rend1').innerHTML     = tableHTML(['Data','Rendimento','Detalhe'], r1Rows);
+    $('#t-rend2').innerHTML     = tableHTML(['Data','Rendimento','Detalhe'], r2Rows);
+  })();
 </script>
 </body>
 </html>
