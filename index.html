@@ -51,8 +51,8 @@
       <label class="muted" for="extratoSel">Extrato:</label>
       <select id="extratoSel">
         <option value="depositos">Depósitos</option>
-        <option value="rend1">Rendimentos – Investimento 1</option>
-        <option value="rend2">Rendimentos – Investimento 2</option>
+        <option value="rend1">Rendimentos Investimento 1</option>
+        <option value="rend2">Rendimentos Investimento 2</option>
       </select>
       <button id="btnAtualizar">Atualizar agora</button>
       <span class="status" id="lastUpdate"></span>
@@ -75,14 +75,13 @@
   </div>
 
 <script>
-/** ===== CONFIG ===== */
 const PUB_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSSTZeX26G70f5Xd9WyqZkLE4kjkL4qUUVdpHGras3NWUqjHvRPEY62NB8IzPGpgZmIKbekFDD7gxfg";
 const GVIZ = (sheetName) => `${PUB_BASE}/gviz/tq?sheet=${encodeURIComponent(sheetName)}&tqx=out:json`;
 
 const SHEET_CONTROLE = "Controle";
 const SHEET_DEPOSITOS = "Depósitos";
-const SHEET_REND1 = "Rendimentos - Investimento 1";
-const SHEET_REND2 = "Rendimentos - Investimento 2";
+const SHEET_REND1 = "Rendimentos Investimento 1";
+const SHEET_REND2 = "Rendimentos Investimento 2";
 
 const fmtBRL = new Intl.NumberFormat('pt-BR',{ style:'currency', currency:'BRL', minimumFractionDigits:2, maximumFractionDigits:2 });
 const fmtDate = (d) => new Date(d.getTime() - d.getTimezoneOffset()*60000).toLocaleDateString('pt-BR');
@@ -92,13 +91,11 @@ function todayAtMidnight() {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
-/** ===== HELPERS ===== */
 async function fetchGViz(sheetName) {
   const url = GVIZ(sheetName);
   const res = await fetch(url, { cache: 'no-store' });
   if (!res.ok) throw new Error(`HTTP ${res.status} ao buscar ${sheetName}`);
   const txt = await res.text();
-  // regex CORRETO (sem barras invertidas duplicadas)
   const m = txt.match(/setResponse\((.*)\)\s*;?\s*$/s);
   if (!m) throw new Error("Resposta GViz inválida (" + sheetName + "). Verifique se a planilha está 'Publicada na Web' e se o nome da aba está correto.");
   return JSON.parse(m[1]);
@@ -151,7 +148,6 @@ function filterUntilToday(rows, dateKey) {
   });
 }
 
-/** ===== UI BINDINGS ===== */
 const els = {
   status: document.getElementById('status'),
   lastUpdate: document.getElementById('lastUpdate'),
@@ -176,15 +172,10 @@ function setStatus(msg, ok, isError) {
   els.status.className = "muted" + (isError ? " error" : (ok ? " success" : ""));
 }
 
-/** ===== RENDER CONTROLE ===== */
 function renderControleColumns(rows) {
   if (!rows || !rows.length) {
-    els.saldoA1.textContent = els.rendA1.textContent = els.saldoA2.textContent = "—";
-    els.rendA2.textContent = els.valorTotal.textContent = els.rendTotal.textContent = "—";
-    els.saldoTotal.textContent = els.dataAtual.textContent = "—";
     return;
   }
-  // pega a última linha não-vazia
   let last = rows.slice().reverse().find(r => r && Object.values(r).some(x => x !== null && String(x).trim() !== ""));
   if (!last) last = rows[rows.length - 1];
 
@@ -213,7 +204,6 @@ function renderControleColumns(rows) {
   els.dataAtual.textContent  = fmtDate(d);
 }
 
-/** ===== RENDER EXTRATOS ===== */
 function renderExtrato(rows, dateCol, valueCol) {
   els.tbodyExtrato.innerHTML = "";
   if (!rows || !rows.length) {
@@ -248,11 +238,7 @@ function renderExtrato(rows, dateCol, valueCol) {
     tr.appendChild(tdD); tr.appendChild(tdV);
     frag.appendChild(tr);
   }
-  if (!frag.childNodes.length) {
-    els.tbodyExtrato.innerHTML = `<tr><td colspan="2" class="muted">Sem lançamentos até hoje.</td></tr>`;
-  } else {
-    els.tbodyExtrato.appendChild(frag);
-  }
+  els.tbodyExtrato.appendChild(frag);
   els.totalPeriodo.textContent = fmtBRL.format(total);
 }
 
@@ -267,7 +253,6 @@ function renderExtratoCurrent() {
   }
 }
 
-/** ===== LOAD ===== */
 async function loadAll() {
   setStatus("Carregando dados…");
   try {
@@ -295,7 +280,6 @@ async function loadAll() {
   }
 }
 
-/** ===== EVENTS ===== */
 els.extratoSel.addEventListener('change', renderExtratoCurrent);
 els.btnAtualizar.addEventListener('click', loadAll);
 
