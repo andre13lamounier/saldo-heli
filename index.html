@@ -110,7 +110,7 @@
   const LOGIN_PASS  = 'helilamounier16';
 
   // ===== PLANILHA PUBLICADA (CSV) =====
-  const BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSSTZeX26G70f5Xd9WyqZkLE4kjkL4qUUVdpHGras3NWUqjHvRPEY62NB8IzPGpgZmIKbekFDD7gxfg/pub?output=csv&single=true&sheet=';
+  const CSV_BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSSTZeX26G70f5Xd9WyqZkLE4kjkL4qUUVdpHGras3NWUqjHvRPEY62NB8IzPGpgZmIKbekFDD7gxfg/pub?output=csv&single=true&sheet=';
   const SHEETS = {controle:'Controle', depositos:'Depósitos', rend1:'Rendimentos - Investimento 1', rend2:'Rendimentos - Investimento 2'};
 
   // ===== STATE =====
@@ -126,29 +126,50 @@
   function clearAuth(){try{ localStorage.removeItem('pa_auth'); }catch(e){} }
   function hasAuth(){ try{ return localStorage.getItem('pa_auth')==='1'; }catch(e){ return false; } }
 
-  window.addEventListener('DOMContentLoaded', ()=>{ if(hasAuth()){ showApp(); ensureBoot(); } else { showLogin(); }});
-  $('#go').addEventListener('click', ()=>{ const e=$('#email').value.trim(), p=$('#pass').value; if(e===LOGIN_EMAIL&&p===LOGIN_PASS){ saveAuth(); showApp(); ensureBoot(); } else { $('#err').textContent='Credenciais inválidas'; }});
-  $('#logout').addEventListener('click', ()=>{ clearAuth(); location.reload(); });
+  // ===== BOOT/LOGIN =====
+  window.addEventListener('DOMContentLoaded', ()=>{
+    if(hasAuth()){ showApp(); ensureBoot(); } else { showLogin(); }
+    const onEnter = (ev)=>{ if(ev.key==='Enter'){ tryLogin(); } };
+    document.querySelector('#email').addEventListener('keydown', onEnter);
+    document.querySelector('#pass').addEventListener('keydown', onEnter);
+  });
+  function tryLogin(){
+    const e = (document.querySelector('#email').value||'').trim().toLowerCase();
+    const p = (document.querySelector('#pass').value||'').trim();
+    if(e === LOGIN_EMAIL.toLowerCase() && p === LOGIN_PASS){
+      saveAuth(); document.querySelector('#err').textContent=''; showApp(); ensureBoot();
+    } else {
+      document.querySelector('#err').textContent='Credenciais inválidas';
+    }
+  }
+  document.querySelector('#go').addEventListener('click', tryLogin);
+  document.querySelector('#logout').addEventListener('click', ()=>{ clearAuth(); location.reload(); });
   function ensureBoot(){ if(!booted){ booted=true; boot(); } }
 
-  // ===== CSV PARSER (com aspas) =====
+  // ===== CSV PARSER =====
   function parseCSV(text){
     const lines = text.replace(/\r/g,'').split(/\n+/).filter(Boolean);
     const rows = lines.map(line=>{ const out=[]; let cur=''; let q=false; for(let i=0;i<line.length;i++){ const ch=line[i]; if(ch==='"'){ if(q && line[i+1]==='"'){ cur+='"'; i++; } else { q=!q; } } else if(ch===',' && !q){ out.push(cur); cur=''; } else { cur+=ch; } } out.push(cur); return out; });
     const cols = rows.shift() || [];
     return { cols, rows };
   }
-  async function fetchSheet(sheet){ const url = BASE + encodeURIComponent(sheet) + '&ts=' + Date.now(); const res = await fetch(url); if(!res.ok){ return {cols:[],rows:[]} } const txt = await res.text(); return parseCSV(txt); }
+  async function fetchSheet(sheet){
+    const url = CSV_BASE + encodeURIComponent(sheet) + '&ts=' + Date.now();
+    const res = await fetch(url);
+    if(!res.ok){ return {cols:[],rows:[]} }
+    const txt = await res.text();
+    return parseCSV(txt);
+  }
 
-  // ===== FORMAT/UTILS =====
+  // ===== UTILS =====
   const norm = s => (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
   const findIndex = (cols, cands)=>{ const C=cols.map(norm); for(const c of cands){ const i=C.indexOf(norm(c)); if(i>=0) return i; } return -1; };
-  function toDate(s){ if(!s) return null; if(s instanceof Date) return s; if(typeof s==='number') return new Date(s); if(typeof s==='string'){ const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/); if(m){ const dd=+m[1], mm=+m[2]-1, yy=(+m[3]<100?2000+(+m[3]):+m[3]); return new Date(yy,mm,dd);} const iso=new Date(s); if(!isNaN(iso)) return iso; } return null; }
+  function toDate(s){ if(!s) return null; if(s instanceof Date) return s; if(typeof s==='string'){ const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/); if(m){ const dd=+m[1], mm=+m[2]-1, yy=(+m[3]<100?2000+(+m[3]):+m[3]); return new Date(yy,mm,dd);} const iso=new Date(s); if(!isNaN(iso)) return iso; } return null; }
   function fmtBRL(n){ if(n==null||n==='') return '—'; const num = typeof n==='string'? parseFloat(String(n).replace(/[^0-9\-.,]/g,'').replace(/\./g,'').replace(',', '.')) : n; if(isNaN(num)) return String(n); return num.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
   function fmtDate(d){ if(!(d instanceof Date)||isNaN(d)) return '—'; const dd=String(d.getDate()).padStart(2,'0'), mm=String(d.getMonth()+1).padStart(2,'0'), yy=d.getFullYear(); return `${dd}/${mm}/${yy}`; }
   function escapeHTML(s){ return String(s).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
 
-  // ===== CARREGAMENTO =====
+  // ===== LOADERS =====
   async function loadControle(){
     const g = await fetchSheet(SHEETS.controle);
     if(!g.rows.length) return;
@@ -164,7 +185,6 @@
     $('#rend2').textContent  = fmtBRL(r[ix.rend2]);
     $('#updated').textContent = 'Atualizado em ' + fmtDate(dA2);
   }
-
   async function loadDepositos(){
     const g = await fetchSheet(SHEETS.depositos);
     if(!g.rows.length){ dep=[]; return; }
@@ -194,9 +214,6 @@
     const tbody = '<tbody>'+rows.map(r=>'<tr>'+r.map((c,i)=>'<td class="'+(i===1?'right':'')+'">'+c+'</td>').join('')+'</tr>').join('')+'</tbody>';
     return '<div class="card"><table>'+thead+tbody+'</table></div>';
   }
-  function activeRange(){ return document.querySelector('.pill.active')?.dataset.range || '30'; }
-  function rangeFilter(d){ const r=activeRange(); if(r==='all') return d && d<=cutoff; const days=(r==='30'?30:90); const from=new Date(cutoff); from.setDate(from.getDate()-days); return d && d>=from && d<=cutoff; }
-  function applySearch(arr){ const q=($('#q').value||'').toLowerCase(); if(!q) return arr; return arr.filter(x=> String(x.det||'').toLowerCase().includes(q)); }
   function renderTables(){
     const range=document.querySelector('.pill.active').dataset.range;
     const q=($('#q').value||'').toLowerCase();
@@ -207,7 +224,7 @@
     const r1Rows  = search(r1 ).filter(x=>inRange(x.data)).map(x=>[fmtDate(x.data), fmtBRL(x.valor), escapeHTML(x.det)]);
     const r2Rows  = search(r2 ).filter(x=>inRange(x.data)).map(x=>[fmtDate(x.data), fmtBRL(x.valor), escapeHTML(x.det)]);
 
-    // auto-fallback para 'Tudo' se não houver resultados no range curto
+    // auto-fallback para 'Tudo' se não houver resultados no range curto na aba atual
     if(range!=='all'){
       const currentTab = document.querySelector('.tab.active')?.dataset.tab || 'depositos';
       const zero = (currentTab==='depositos'?depRows.length: currentTab==='rend1'?r1Rows.length: r2Rows.length)===0;
@@ -221,7 +238,43 @@
     $('#t-depositos').innerHTML = tableHTML(['Data','Valor','Detalhe'], depRows);
     $('#t-rend1').innerHTML     = tableHTML(['Data','Rendimento','Detalhe'], r1Rows);
     $('#t-rend2').innerHTML     = tableHTML(['Data','Rendimento','Detalhe'], r2Rows);
-  })();
+  }
+
+  // ===== INTERAÇÕES =====
+  document.querySelectorAll('.tab').forEach(t=> t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    const id=t.dataset.tab;
+    $('#t-depositos').style.display = (id==='depositos')? 'block':'none';
+    $('#t-rend1').style.display     = (id==='rend1')? 'block':'none';
+    $('#t-rend2').style.display     = (id==='rend2')? 'block':'none';
+    renderTables();
+  }));
+  document.querySelectorAll('.pill').forEach(p=> p.addEventListener('click', ()=>{
+    document.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
+    p.classList.add('active');
+    renderTables();
+  }));
+  document.querySelector('#q').addEventListener('input', renderTables);
+  document.querySelector('#refresh').addEventListener('click', async ()=>{ await boot(true); });
+
+  // ===== BOOT =====
+  async function boot(force){
+    await loadControle();
+    await Promise.all([loadDepositos(), loadRend1(), loadRend2()]);
+    if(!force){
+      // estado inicial
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      document.querySelector('.tab[data-tab="depositos"]').classList.add('active');
+      document.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
+      document.querySelector('.pill[data-range="all"]').classList.add('active');
+      $('#t-depositos').style.display='block';
+      $('#t-rend1').style.display='none';
+      $('#t-rend2').style.display='none';
+    }
+    renderTables();
+  }
+})();
 </script>
 </body>
 </html>
