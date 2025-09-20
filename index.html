@@ -80,15 +80,6 @@ const PUB_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSSTZeX26G70f5
 const GVIZ_GID = (gid) => `${PUB_BASE}/gviz/tq?gid=${encodeURIComponent(gid)}&tqx=out:json`;
 const PUBHTML = `${PUB_BASE}/pubhtml`;
 
-/** Abas desejadas (nomes humanos) -> serão mapeadas para GIDs */
-const WANT_SHEETS = {
-  controle: "Controle",
-  depositos: "Depósitos",
-  rend1: "Rendimentos Investimento 1",
-  rend2: "Rendimentos Investimento 2",
-};
-
-/** ===== HELPERS ===== */
 const fmtBRL = new Intl.NumberFormat('pt-BR',{ style:'currency', currency:'BRL', minimumFractionDigits:2, maximumFractionDigits:2 });
 const fmtDate = (d) => new Date(d.getTime() - d.getTimezoneOffset()*60000).toLocaleDateString('pt-BR');
 function todayAtMidnight(){ const n=new Date(); return new Date(n.getFullYear(),n.getMonth(),n.getDate()); }
@@ -104,36 +95,11 @@ async function fetchText(url){
   if(!r.ok) throw new Error(`HTTP ${r.status} ao buscar ${url}`);
   return await r.text();
 }
-
-async function discoverGids(){
-  const html = await fetchText(PUBHTML);
-  // Extrai pares (nome, gid) do HTML publicado.
-  // Padrões possíveis no pubhtml:
-  //  - href="#gid=123456789" ... >Nome da aba<
-  //  - data-gid="123456789" data-sheet-name="Nome da aba"
-  const map = {};
-  // 1) via data-sheet-name + data-gid
-  const reData = /data-gid="(\d+)"[^>]*data-sheet-name="([^"]+)"/g;
-  let m;
-  while((m = reData.exec(html))){
-    map[m[2].trim()] = m[1];
-  }
-  // 2) via links com #gid=... e o texto da aba
-  const reLink = /<a[^>]+href="#gid=(\d+)"[^>]*>(.*?)<\/a>/g;
-  while((m = reLink.exec(html))){
-    const text = m[2].replace(/<[^>]+>/g,'').trim();
-    if(text) map[text] = m[1];
-  }
-  if(Object.keys(map).length === 0) throw new Error("Não foi possível descobrir os GIDs das abas publicadas.");
-  return map;
-}
-
 function parseGVizJSON(text){
   const m = text.match(/setResponse\((.*)\)\s*;?\s*$/s);
   if(!m) throw new Error("Resposta GViz inválida.");
   return JSON.parse(m[1]);
 }
-
 function gvizToObjects(gviz){
   const cols = (gviz.table.cols || []).map(c => (c.label || c.id || "").trim());
   return (gviz.table.rows || []).map(r => {
@@ -147,14 +113,11 @@ function gvizToObjects(gviz){
     return o;
   });
 }
-
 function toNumberPT(s){
   if (s == null) return NaN;
   const str = String(s).replace(/\./g,'').replace(/,/g,'.').replace(/[^\d\.\-]/g,'');
-  const n = parseFloat(str);
-  return Number.isFinite(n) ? n : NaN;
+  const n = parseFloat(str); return Number.isFinite(n) ? n : NaN;
 }
-
 function parseDateMaybe(v){
   if (v == null) return null;
   if (typeof v === 'string') {
@@ -166,7 +129,6 @@ function parseDateMaybe(v){
   if (typeof v === 'number') { const d=new Date(v); if(!isNaN(d)) return d; }
   return null;
 }
-
 function filterUntilToday(rows, dateKey){
   const today = todayAtMidnight();
   return rows.filter(r => {
@@ -196,7 +158,17 @@ const els = {
 let GIDS = null;
 let cacheData = { controle:null, depositos:null, rend1:null, rend2:null };
 
-/** ===== Render controle ===== */
+/** Detecta tipo da aba pelas colunas */
+function detectTypeByColumns(rows){
+  if(!rows || !rows.length) return null;
+  const keys = Object.keys(rows[0] || {});
+  const has = (k) => keys.includes(k);
+  if (has("Aplicação 1") && has("Rendimento 1") && has("Total")) return "controle";
+  if (has("Depósito") && has("Total")) return "depositos";
+  if (has("Rendimento") && has("Rendimento Acumulado")) return "rend"; // serve p/ 1 e 2
+  return null;
+}
+
 function renderControleColumns(rows){
   if(!rows || !rows.length) return;
   let last = rows.slice().reverse().find(r => r && Object.values(r).some(x => x !== null && String(x).trim() !== ""));
@@ -227,7 +199,6 @@ function renderControleColumns(rows){
   els.dataAtual.textContent  = fmtDate(d);
 }
 
-/** ===== Render extratos ===== */
 function renderExtrato(rows, dateCol, valueCol){
   els.tbodyExtrato.innerHTML = "";
   if(!rows || !rows.length){
@@ -250,11 +221,7 @@ function renderExtrato(rows, dateCol, valueCol){
     tdD.textContent = fmtDate(d); tdV.textContent = fmtBRL.format(n);
     tr.appendChild(tdD); tr.appendChild(tdV); frag.appendChild(tr);
   }
-  if(!frag.childNodes.length){
-    els.tbodyExtrato.innerHTML = `<tr><td colspan="2" class="muted">Sem lançamentos até hoje.</td></tr>`;
-  } else {
-    els.tbodyExtrato.appendChild(frag);
-  }
+  els.tbodyExtrato.appendChild(frag);
   els.totalPeriodo.textContent = fmtBRL.format(total);
 }
 
@@ -265,36 +232,37 @@ function renderExtratoCurrent(){
   if(which==='rend2')     renderExtrato(cacheData.rend2||[], "Data", "Rendimento");
 }
 
-/** ===== LOAD ===== */
 async function loadAll(){
   setStatus("Carregando dados…");
   try{
     if(!GIDS){
-      const discovered = await discoverGids();
-      // Cria mapa amigável -> gid
-      GIDS = {
-        controle: discovered[WANT_SHEETS.controle],
-        depositos: discovered[WANT_SHEETS.depositos],
-        rend1: discovered[WANT_SHEETS.rend1],
-        rend2: discovered[WANT_SHEETS.rend2],
-      };
-      // Validação mínima
-      for(const [k,v] of Object.entries(GIDS)){
-        if(!v) throw new Error(`Não encontrei a aba '${WANT_SHEETS[k]}' na versão publicada.`);
+      const html = await fetchText(PUBHTML);
+      const gids = Array.from(new Set((html.match(/gid=(\d+)/g) || []).map(s=>s.replace('gid=',''))));
+      if(!gids.length) throw new Error("Não foi possível detectar nenhum gid no pubhtml.");
+      // Busca todas as abas e classifica por colunas
+      const texts = await Promise.all(gids.map(id => fetchText(GVIZ_GID(id)).catch(()=>null)));
+      const parsed = texts.map(t => { try { return t ? parseGVizJSON(t) : null; } catch { return null; } });
+      const asObjs = parsed.map(j => j ? gvizToObjects(j) : null);
+
+      // Classificação
+      let ctrl=null, deps=null, r1=null, r2=null;
+      for(const rows of asObjs){
+        const typ = detectTypeByColumns(rows||[]);
+        if(typ==='controle' && !ctrl) ctrl = rows;
+        else if(typ==='depositos' && !deps) deps = rows;
+        else if(typ==='rend'){
+          if(!r1) r1 = rows;
+          else if(!r2) r2 = rows;
+        }
       }
+      if(!ctrl || !deps || !r1 || !r2) {
+        throw new Error("Não consegui classificar todas as abas (Controle, Depósitos, Rend1, Rend2). Verifique se estão publicadas.");
+      }
+      cacheData = { controle:ctrl, depositos:deps, rend1:r1, rend2:r2 };
+    } else {
+      // (fallback caso já tenhamos cacheData via GIDs previamente)
     }
 
-    const urls = [
-      GVIZ_GID(GIDS.controle),
-      GVIZ_GID(GIDS.depositos),
-      GVIZ_GID(GIDS.rend1),
-      GVIZ_GID(GIDS.rend2),
-    ];
-    const texts = await Promise.all(urls.map(u => fetchText(u)));
-    const jsons = texts.map(parseGVizJSON);
-    const [ctrl,deps,r1,r2] = jsons.map(gvizToObjects);
-
-    cacheData = { controle:ctrl, depositos:deps, rend1:r1, rend2:r2 };
     renderControleColumns(cacheData.controle);
     renderExtratoCurrent();
 
