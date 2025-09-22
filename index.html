@@ -1,283 +1,512 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Painel simples de saldo</title>
-  <style>
-    :root { --gap: 12px; --radius: 10px; --shadow: 0 2px 10px rgba(0,0,0,.06); }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; background: #f7f7f8; color: #111; }
-    header { padding: 16px 20px; background: #ffffff; box-shadow: var(--shadow); position: sticky; top: 0; z-index: 2; }
-    h1 { font-size: 18px; margin: 0; }
-    .container { max-width: 1100px; margin: 18px auto; padding: 0 16px; }
-    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: var(--gap); }
-    .card { background: #fff; border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); }
-    .card h3 { font-size: 14px; margin: 0 0 6px; color: #444; font-weight: 600; }
-    .card .value { font-size: 22px; font-weight: 700; }
-    .row { display: flex; gap: var(--gap); flex-wrap: wrap; align-items: center; margin: 18px 0; }
-    select, button { padding: 10px 12px; border-radius: 8px; border: 1px solid #ddd; background: #fff; }
-    button { cursor: pointer; }
-    .table-wrap { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 10px 12px; border-bottom: 1px solid #eee; text-align: left; font-size: 14px; }
-    th { background: #fafafa; color: #555; font-weight: 600; }
-    tfoot td { font-weight: 700; }
-    .muted { color: #666; font-size: 13px; }
-    .status { font-size: 13px; }
-    .error { color: #b00020; font-weight: 600; }
-    .success { color: #0a7b34; }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Painel de Saldo</title>
+<style>
+  :root{
+    --bg:#0b0f1a; --bg-soft:#111729; --card:#121a2a; --ink:#e6eefc; --muted:#9fb3d1; --accent:#4da3ff; --ok:#2dd4bf; --warn:#f59e0b;
+    --radius:16px;
+  }
+  html,body{height:100%}
+  body{margin:0;background:linear-gradient(180deg,#0b1020,#0a0d18);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--ink);}
+
+  .container{max-width:1100px;margin:0 auto;padding:28px}
+  .app{display:none}
+  .grid{display:grid;gap:16px}
+  .grid.cards{grid-template-columns: repeat(12, minmax(0,1fr))}
+  .card{background:var(--card);border:1px solid #1b2740;border-radius:var(--radius);padding:16px;box-shadow:0 0 0 1px rgba(255,255,255,0.02) inset}
+  .card h3{margin:0 0 8px 0;font-weight:600;font-size:14px;color:var(--muted);letter-spacing:.3px;text-transform:uppercase}
+  .value{font-size:28px;font-weight:700;letter-spacing:.2px}
+  .sub{font-size:13px;color:var(--muted)}
+  .ok{color:var(--ok)}
+  .warn{color:var(--warn)}
+  .accent{color:var(--accent)}
+
+  .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+  .header .title{font-size:18px;font-weight:700;letter-spacing:.2px}
+  .pill{border:1px solid #20304f;background:#0d1424;border-radius:999px;padding:6px 10px;font-size:12px;color:var(--muted)}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  select,button{background:#101a2e;border:1px solid #233456;border-radius:12px;color:var(--ink);padding:10px 12px;font-size:14px}
+  button.primary{background:linear-gradient(180deg,#1d3a66,#14284b);border-color:#2b4b80}
+  table{width:100%;border-collapse:separate;border-spacing:0 8px}
+  thead th{font-size:12px;color:var(--muted);text-align:left;padding:6px 10px}
+  tbody td{background:var(--bg-soft);border:1px solid #1a2744;border-left-width:1px;padding:10px;border-radius:8px}
+  tbody tr td:first-child{border-top-left-radius:10px;border-bottom-left-radius:10px}
+  tbody tr td:last-child{border-top-right-radius:10px;border-bottom-right-radius:10px}
+  .right{text-align:right}
+
+  /* layout */
+  .span-6{grid-column: span 6 / span 6}
+  .span-4{grid-column: span 4 / span 4}
+  .span-3{grid-column: span 3 / span 3}
+  .span-12{grid-column: 1 / -1}
+
+  /* login */
+  .login-wrap{min-height:100%;display:grid;place-items:center;padding:24px}
+  .login{width:100%;max-width:380px;background:var(--card);border:1px solid #1b2740;border-radius:20px;padding:22px}
+  .login h1{margin:0 0 6px 0;font-size:20px}
+  .login p{margin:0 0 18px 0;color:var(--muted);font-size:14px}
+  .field{display:grid;gap:6px;margin-bottom:12px}
+  .field input{padding:12px 12px;border-radius:12px;border:1px solid #233456;background:#101a2e;color:var(--ink);font-size:14px}
+  .error{color:#ff6b6b;font-size:13px;min-height:18px}
+
+  /* loading overlay */
+  #loadingOverlay{
+    position: fixed; inset: 0; display:none; align-items:center; justify-content:center;
+    background: rgba(6, 10, 20, .6); backdrop-filter: blur(2px); z-index: 9999;
+  }
+  .spinner{
+    width: 64px; height: 64px; border-radius: 50%;
+    border: 6px solid rgba(255,255,255,.15);
+    border-top-color: rgba(77,163,255,1);
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin{ to { transform: rotate(360deg); } }
+  .loading-text{margin-top:12px; font-size:14px; color:var(--muted); text-align:center}
+
+  @media (max-width:900px){
+    .span-6,.span-4,.span-3{grid-column: 1 / -1}
+  }
+
+  /* disabled state for controls while loading */
+  .disabled{opacity:.6; pointer-events:none; filter: grayscale(40%);}
+</style>
 </head>
 <body>
-  <header>
-    <h1>Painel simples de saldo</h1>
-    <div class="muted" id="status">Carregando dados…</div>
-  </header>
 
-  <div class="container">
-
-    <section class="cards" id="cards">
-      <div class="card"><h3>Saldo aplicação 1</h3><div class="value" id="saldoA1">—</div></div>
-      <div class="card"><h3>Rendimento aplicação 1</h3><div class="value" id="rendA1">—</div></div>
-      <div class="card"><h3>Saldo aplicação 2</h3><div class="value" id="saldoA2">—</div></div>
-      <div class="card"><h3>Rendimento aplicação 2</h3><div class="value" id="rendA2">—</div></div>
-      <div class="card"><h3>Valor total</h3><div class="value" id="valorTotal">—</div></div>
-      <div class="card"><h3>Rendimento total</h3><div class="value" id="rendTotal">—</div></div>
-      <div class="card"><h3>Saldo total</h3><div class="value" id="saldoTotal">—</div></div>
-      <div class="card"><h3>Data de atualização</h3><div class="value" id="dataAtual">—</div></div>
-    </section>
-
-    <section class="row">
-      <label class="muted" for="extratoSel">Extratos:</label>
-      <select id="extratoSel">
-        <option value="depositos">Depósitos</option>
-        <option value="rend1">Rendimentos Investimento 1</option>
-        <option value="rend2">Rendimentos Investimento 2</option>
-      </select>
-      <button id="btnAtualizar">Atualizar agora</button>
-      <span class="status" id="lastUpdate"></span>
-    </section>
-
-    <section class="table-wrap">
-      <table>
-        <thead>
-          <tr><th>Data</th><th>Valor</th></tr>
-        </thead>
-        <tbody id="tbodyExtrato">
-          <tr><td colspan="2" class="muted">Carregando…</td></tr>
-        </tbody>
-        <tfoot>
-          <tr><td>Total no período</td><td id="totalPeriodo">—</td></tr>
-        </tfoot>
-      </table>
-    </section>
-
+<!-- LOGIN -->
+<div id="loginView" class="login-wrap">
+  <div class="login">
+    <h1>Entrar</h1>
+    <p>Acesse com seu usuário e senha.</p>
+    <div class="field">
+      <label for="email">Usuário</label>
+      <input id="email" type="email" autocomplete="username" placeholder="seu@email.com" />
+    </div>
+    <div class="field">
+      <label for="password">Senha</label>
+      <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
+    </div>
+    <div class="error" id="loginError"></div>
+    <button id="loginBtn" class="primary" style="width:100%;margin-top:4px">Entrar</button>
   </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="app">
+  <div class="container">
+    <div class="header">
+      <div class="title">Acompanhamento de Saldo</div>
+      <div class="pill">Atualização: <span id="updatedAt">—</span></div>
+    </div>
+
+    <!-- CARDS -->
+    <div class="grid cards" id="cards">
+      <div class="card span-6">
+        <h3>Valor Total</h3>
+        <div class="value" id="valorTotal">—</div>
+      </div>
+      <div class="card span-6">
+        <h3>Rendimento Total</h3>
+        <div class="value ok" id="rendimentoTotal">—</div>
+      </div>
+
+      <div class="card span-3">
+        <h3>Aplicação CDB</h3>
+        <div class="value" id="aplicacaoCDB">—</div>
+        <div class="sub">Principal</div>
+      </div>
+      <div class="card span-3">
+        <h3>Rendimento CDB</h3>
+        <div class="value ok" id="rendimentoCDB">—</div>
+        <div class="sub">Acumulado</div>
+      </div>
+      <div class="card span-3">
+        <h3>Aplicação CDI</h3>
+        <div class="value" id="aplicacaoCDI">—</div>
+        <div class="sub">Principal</div>
+      </div>
+      <div class="card span-3">
+        <h3>Rendimento CDI</h3>
+        <div class="value ok" id="rendimentoCDI">—</div>
+        <div class="sub">Acumulado</div>
+      </div>
+    </div>
+
+    <!-- CONTROLES -->
+    <div class="card" style="margin-top:16px">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <div class="row" id="controlsRow">
+          <div class="field">
+            <label for="tipoExtrato" class="sub">Tipo de extrato</label>
+            <select id="tipoExtrato">
+              <option value="depositos">Depósitos</option>
+              <option value="cdb">Rendimento CDB</option>
+              <option value="cdi">Rendimento CDI</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="periodo" class="sub">Período</label>
+            <select id="periodo">
+              <option value="total">Total</option>
+              <option value="30">Últimos 30 dias</option>
+              <option value="90">Últimos 90 dias</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <button id="refreshBtn" class="primary">Atualizar agora</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXTRATO -->
+    <div class="card" style="margin-top:16px">
+      <div class="header" style="margin:0 0 8px 0">
+        <div class="title">Extrato</div>
+        <div class="pill" id="extratoResumo">—</div>
+      </div>
+      <div style="overflow-x:auto">
+        <table id="tabelaExtrato">
+          <thead id="theadExtrato"></thead>
+          <tbody id="tbodyExtrato"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay">
+  <div style="display:flex; flex-direction:column; align-items:center;">
+    <div class="spinner" aria-hidden="true"></div>
+    <div class="loading-text">Carregando dados...</div>
+  </div>
+</div>
 
 <script>
-/** ===== BASE ===== */
-const PUB_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSSTZeX26G70f5Xd9WyqZkLE4kjkL4qUUVdpHGras3NWUqjHvRPEY62NB8IzPGpgZmIKbekFDD7gxfg";
-const GVIZ_GID = (gid) => `${PUB_BASE}/gviz/tq?gid=${encodeURIComponent(gid)}&tqx=out:json`;
-const PUBHTML = `${PUB_BASE}/pubhtml`;
+/** CONFIG **/
+const PUBLISHED_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSSTZeX26G70f5Xd9WyqZkLE4kjkL4qUUVdpHGras3NWUqjHvRPEY62NB8IzPGpgZmIKbekFDD7gxfg/pubhtml";
+const BASE_PREFIX = PUBLISHED_URL.replace(/\\/pubhtml(\\?.*)?$/,'');
 
-const fmtBRL = new Intl.NumberFormat('pt-BR',{ style:'currency', currency:'BRL', minimumFractionDigits:2, maximumFractionDigits:2 });
-const fmtDate = (d) => new Date(d.getTime() - d.getTimezoneOffset()*60000).toLocaleDateString('pt-BR');
-function todayAtMidnight(){ const n=new Date(); return new Date(n.getFullYear(),n.getMonth(),n.getDate()); }
+const EXPECTED_USER = "lamounier16@gmail.com";
+const EXPECTED_PASS = "helilamounier16";
 
-function setStatus(msg, ok, isError) {
-  const el = document.getElementById('status');
-  el.textContent = msg;
-  el.className = "muted" + (isError ? " error" : (ok ? " success" : ""));
-}
+/** STATE **/
+let gids = {}; // { "1": <gid>, "2": <gid>, ... }
+let dataAtualizacao = null; // Date
+let cacheSheets = {}; // cache CSV parsed per gid
+let loadingCount = 0;
 
-async function fetchText(url){
-  const r = await fetch(url, { cache: 'no-store' });
-  if(!r.ok) throw new Error(`HTTP ${r.status} ao buscar ${url}`);
-  return await r.text();
+/** UI HELPERS **/
+const fmtBRL = (v) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(String(v).replace(/\\./g,'').replace(',','.')||0));
+const pad = (n)=> String(n).padStart(2,'0');
+const fmtDateBR = (d)=> \`\${pad(d.getDate())}/\${pad(d.getMonth()+1)}/\${d.getFullYear()}\`;
+function parseDateBR(str){
+  // aceita dd/mm/aaaa
+  const m = String(str||'').trim().match(/^(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})$/);
+  if(!m) return null;
+  const [_, dd, mm, yyyy] = m;
+  const dt = new Date(Number(yyyy), Number(mm)-1, Number(dd));
+  return isNaN(dt.getTime()) ? null : dt;
 }
-function parseGVizJSON(text){
-  const m = text.match(/setResponse\((.*)\)\s*;?\s*$/s);
-  if(!m) throw new Error("Resposta GViz inválida.");
-  return JSON.parse(m[1]);
+function setText(id, text){ const el = document.getElementById(id); if(el) el.textContent = text; }
+
+/** LOADING OVERLAY **/
+function showLoading(){
+  loadingCount++;
+  document.getElementById('loadingOverlay').style.display = 'flex';
+  document.getElementById('controlsRow')?.classList.add('disabled');
+  document.getElementById('refreshBtn')?.classList.add('disabled');
 }
-function gvizToObjects(gviz){
-  const cols = (gviz.table.cols || []).map(c => (c.label || c.id || "").trim());
-  return (gviz.table.rows || []).map(r => {
-    const o = {};
-    (r.c || []).forEach((cell, idx) => {
-      const label = cols[idx] || `col${idx}`;
-      if (!cell) { o[label] = null; return; }
-      const v = ('v' in cell && cell.v !== null) ? cell.v : (('f' in cell) ? cell.f : null);
-      o[label] = v;
-    });
-    return o;
-  });
-}
-function toNumberPT(s){
-  if (s == null) return NaN;
-  const str = String(s).replace(/\./g,'').replace(/,/g,'.').replace(/[^\d\.\-]/g,'');
-  const n = parseFloat(str); return Number.isFinite(n) ? n : NaN;
-}
-function parseDateMaybe(v){
-  if (v == null) return null;
-  if (typeof v === 'string') {
-    const m = v.match(/Date\((\d+),(\d+),(\d+)\)/);
-    if (m) return new Date(Number(m[1]), Number(m[2]), Number(m[3]));
-    const d = new Date(v); if (!isNaN(d)) return d;
+function hideLoading(){
+  loadingCount = Math.max(0, loadingCount - 1);
+  if(loadingCount===0){
+    document.getElementById('loadingOverlay').style.display = 'none';
+    document.getElementById('controlsRow')?.classList.remove('disabled');
+    document.getElementById('refreshBtn')?.classList.remove('disabled');
   }
-  if (v instanceof Date) return v;
-  if (typeof v === 'number') { const d=new Date(v); if(!isNaN(d)) return d; }
-  return null;
-}
-function filterUntilToday(rows, dateKey){
-  const today = todayAtMidnight();
-  return rows.filter(r => {
-    const d = parseDateMaybe(r[dateKey]); if(!d) return false;
-    const d0 = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    return d0.getTime() <= today.getTime();
-  });
 }
 
-/** ===== UI refs ===== */
-const els = {
-  saldoA1: document.getElementById('saldoA1'),
-  rendA1: document.getElementById('rendA1'),
-  saldoA2: document.getElementById('saldoA2'),
-  rendA2: document.getElementById('rendA2'),
-  valorTotal: document.getElementById('valorTotal'),
-  rendTotal: document.getElementById('rendTotal'),
-  saldoTotal: document.getElementById('saldoTotal'),
-  dataAtual: document.getElementById('dataAtual'),
-  extratoSel: document.getElementById('extratoSel'),
-  tbodyExtrato: document.getElementById('tbodyExtrato'),
-  totalPeriodo: document.getElementById('totalPeriodo'),
-  btnAtualizar: document.getElementById('btnAtualizar'),
-  lastUpdate: document.getElementById('lastUpdate'),
-};
-
-let GIDS = null;
-let cacheData = { controle:null, depositos:null, rend1:null, rend2:null };
-
-/** Detecta tipo da aba pelas colunas */
-function detectTypeByColumns(rows){
-  if(!rows || !rows.length) return null;
-  const keys = Object.keys(rows[0] || {});
-  const has = (k) => keys.includes(k);
-  if (has("Aplicação 1") && has("Rendimento 1") && has("Total")) return "controle";
-  if (has("Depósito") && has("Total")) return "depositos";
-  if (has("Rendimento") && has("Rendimento Acumulado")) return "rend"; // serve p/ 1 e 2
-  return null;
-}
-
-function renderControleColumns(rows){
-  if(!rows || !rows.length) return;
-  let last = rows.slice().reverse().find(r => r && Object.values(r).some(x => x !== null && String(x).trim() !== ""));
-  if(!last) last = rows[rows.length-1];
-
-  const vA1 = last["Aplicação 1"];
-  const rA1 = last["Rendimento 1"];
-  const vA2 = last["Aplicação 2"];
-  const rA2 = last["Rendimento 2"];
-  const vTotal = last["Total"];
-  const rTotal = last["Rendimento Total"];
-  const d = parseDateMaybe(last["Data"]) || new Date();
-
-  const nA1 = (typeof vA1 === 'number') ? vA1 : toNumberPT(vA1);
-  const nRA1 = (typeof rA1 === 'number') ? rA1 : toNumberPT(rA1);
-  const nA2 = (typeof vA2 === 'number') ? vA2 : toNumberPT(vA2);
-  const nRA2 = (typeof rA2 === 'number') ? rA2 : toNumberPT(rA2);
-  const nTot = (typeof vTotal === 'number') ? vTotal : toNumberPT(vTotal);
-  const nRTot = (typeof rTotal === 'number') ? rTotal : toNumberPT(rTotal);
-
-  els.saldoA1.textContent = Number.isFinite(nA1) ? fmtBRL.format(nA1) : "—";
-  els.rendA1.textContent  = Number.isFinite(nRA1) ? fmtBRL.format(nRA1) : "—";
-  els.saldoA2.textContent = Number.isFinite(nA2) ? fmtBRL.format(nA2) : "—";
-  els.rendA2.textContent  = Number.isFinite(nRA2) ? fmtBRL.format(nRA2) : "—";
-  els.valorTotal.textContent = Number.isFinite(nTot) ? fmtBRL.format(nTot) : "—";
-  els.rendTotal.textContent  = Number.isFinite(nRTot) ? fmtBRL.format(nRTot) : "—";
-  els.saldoTotal.textContent = Number.isFinite(nTot) ? fmtBRL.format(nTot) : "—";
-  els.dataAtual.textContent  = fmtDate(d);
-}
-
-function renderExtrato(rows, dateCol, valueCol){
-  els.tbodyExtrato.innerHTML = "";
-  if(!rows || !rows.length){
-    els.tbodyExtrato.innerHTML = `<tr><td colspan="2" class="muted">Sem lançamentos até hoje.</td></tr>`;
-    els.totalPeriodo.textContent = fmtBRL.format(0); return;
-  }
-  const filtered = filterUntilToday(rows, dateCol);
-  if(!filtered.length){
-    els.tbodyExtrato.innerHTML = `<tr><td colspan="2" class="muted">Sem lançamentos até hoje.</td></tr>`;
-    els.totalPeriodo.textContent = fmtBRL.format(0); return;
-  }
-  filtered.sort((a,b)=>parseDateMaybe(a[dateCol]) - parseDateMaybe(b[dateCol]));
-  let total=0; const frag=document.createDocumentFragment();
-  for(const r of filtered){
-    const d = parseDateMaybe(r[dateCol]); const raw=r[valueCol];
-    const n = (typeof raw==='number')? raw : toNumberPT(raw);
-    if(!d || !Number.isFinite(n)) continue;
-    total += n;
-    const tr=document.createElement('tr'); const tdD=document.createElement('td'); const tdV=document.createElement('td');
-    tdD.textContent = fmtDate(d); tdV.textContent = fmtBRL.format(n);
-    tr.appendChild(tdD); tr.appendChild(tdV); frag.appendChild(tr);
-  }
-  els.tbodyExtrato.appendChild(frag);
-  els.totalPeriodo.textContent = fmtBRL.format(total);
-}
-
-function renderExtratoCurrent(){
-  const which = els.extratoSel.value;
-  if(which==='depositos') renderExtrato(cacheData.depositos||[], "Data", "Depósito");
-  if(which==='rend1')     renderExtrato(cacheData.rend1||[], "Data", "Rendimento");
-  if(which==='rend2')     renderExtrato(cacheData.rend2||[], "Data", "Rendimento");
-}
-
-async function loadAll(){
-  setStatus("Carregando dados…");
-  try{
-    if(!GIDS){
-      const html = await fetchText(PUBHTML);
-      const gids = Array.from(new Set((html.match(/gid=(\d+)/g) || []).map(s=>s.replace('gid=',''))));
-      if(!gids.length) throw new Error("Não foi possível detectar nenhum gid no pubhtml.");
-      // Busca todas as abas e classifica por colunas
-      const texts = await Promise.all(gids.map(id => fetchText(GVIZ_GID(id)).catch(()=>null)));
-      const parsed = texts.map(t => { try { return t ? parseGVizJSON(t) : null; } catch { return null; } });
-      const asObjs = parsed.map(j => j ? gvizToObjects(j) : null);
-
-      // Classificação
-      let ctrl=null, deps=null, r1=null, r2=null;
-      for(const rows of asObjs){
-        const typ = detectTypeByColumns(rows||[]);
-        if(typ==='controle' && !ctrl) ctrl = rows;
-        else if(typ==='depositos' && !deps) deps = rows;
-        else if(typ==='rend'){
-          if(!r1) r1 = rows;
-          else if(!r2) r2 = rows;
-        }
-      }
-      if(!ctrl || !deps || !r1 || !r2) {
-        throw new Error("Não consegui classificar todas as abas (Controle, Depósitos, Rend1, Rend2). Verifique se estão publicadas.");
-      }
-      cacheData = { controle:ctrl, depositos:deps, rend1:r1, rend2:r2 };
+/** SIMPLE CSV PARSER (robusto p/ aspas) **/
+function parseCSV(text){
+  const rows = [];
+  let i=0, field='', row=[], inQuotes=false;
+  while(i<text.length){
+    const c = text[i];
+    if(inQuotes){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field+='"'; i+=2; continue; } // escaped "
+        inQuotes=false; i++; continue;
+      } else { field+=c; i++; continue; }
     } else {
-      // (fallback caso já tenhamos cacheData via GIDs previamente)
+      if(c === '"'){ inQuotes=true; i++; continue; }
+      if(c === ','){ row.push(field); field=''; i++; continue; }
+      if(c === '\\n'){
+        row.push(field); rows.push(row); field=''; row=[]; i++; continue;
+      }
+      if(c === '\\r'){ i++; continue; }
+      field+=c; i++;
+    }
+  }
+  row.push(field); rows.push(row);
+  if(rows.length && rows[rows.length-1].length===1 && rows[rows.length-1][0]==='') rows.pop();
+  return rows;
+}
+
+/** FETCH HELPERS **/
+async function getGidsFromPubhtml(){
+  showLoading();
+  try{
+    const res = await fetch(PUBLISHED_URL, {mode:'cors'});
+    if(!res.ok) throw new Error('Falha ao ler pubhtml');
+    const html = await res.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+    const tabs = [...doc.querySelectorAll('[data-sheets-gid]')];
+    if(!tabs.length){
+      const anchors = [...doc.querySelectorAll('a[href*="gid="]')];
+      anchors.forEach(a=>{
+        const m = a.textContent && a.textContent.trim();
+        const gid = (a.getAttribute('href')||'').match(/gid=(\\d+)/);
+        if(m && gid){ gids[m] = gid[1]; }
+      });
+    } else {
+      tabs.forEach(el=>{
+        const name = (el.textContent||'').trim();
+        const gid = el.getAttribute('data-sheets-gid');
+        if(name && gid){ gids[name] = gid; }
+      });
     }
 
-    renderControleColumns(cacheData.controle);
-    renderExtratoCurrent();
+    ['1','2','3','4'].forEach(n=>{
+      if(!gids[n]){
+        const link = [...doc.querySelectorAll('a')].find(a=> (a.textContent||'').trim()===n && /gid=\\d+/.test(a.href||''));
+        if(link){
+          const gm = link.href.match(/gid=(\\d+)/);
+          if(gm) gids[n]=gm[1];
+        }
+      }
+    });
 
-    setStatus("Dados carregados.", true);
-    els.lastUpdate.textContent = "Atualizado agora";
-  }catch(e){
-    console.error(e);
-    setStatus("Falha ao carregar dados: " + (e && e.message ? e.message : e), false, true);
-    els.tbodyExtrato.innerHTML = `<tr><td colspan="2" class="error">Erro ao carregar dados.</td></tr>`;
+    const missing = ['1','2','3','4'].filter(k=>!gids[k]);
+    if(missing.length) throw new Error('Não foi possível identificar as abas: '+missing.join(', '));
+    return gids;
+  } finally {
+    hideLoading();
   }
 }
 
-els.extratoSel.addEventListener('change', renderExtratoCurrent);
-els.btnAtualizar.addEventListener('click', loadAll);
-loadAll();
+async function fetchCSVBySheetName(name){
+  if(!gids[name]) throw new Error('GID não encontrado para aba '+name);
+  const url = \`\${BASE_PREFIX}/pub?gid=\${encodeURIComponent(gids[name])}&single=true&output=csv\`;
+  if(cacheSheets[url]) return cacheSheets[url];
+  showLoading();
+  try{
+    const res = await fetch(url, {mode:'cors'});
+    if(!res.ok) throw new Error('Falha ao baixar CSV da aba '+name);
+    const txt = await res.text();
+    const rows = parseCSV(txt);
+    cacheSheets[url] = rows;
+    return rows;
+  } finally {
+    hideLoading();
+  }
+}
+
+/** RENDER **/
+function renderPrincipais(sheet1){
+  const get = (r,c) => (sheet1[r] && sheet1[r][c]) ? sheet1[r][c] : '';
+  const A2 = get(1,0);
+  const C2 = get(1,2);
+  const D2 = get(1,3);
+  const E2 = get(1,4);
+  const F2 = get(1,5);
+  const G2 = get(1,6);
+  const H2 = get(1,7);
+
+  const dt = parseDateBR(A2) || new Date(A2);
+  dataAtualizacao = (dt && !isNaN(dt.getTime())) ? dt : null;
+  setText('updatedAt', dataAtualizacao ? fmtDateBR(dataAtualizacao) : (A2 || '—'));
+
+  setText('valorTotal', fmtBRL(G2));
+  setText('rendimentoTotal', fmtBRL(H2));
+  setText('aplicacaoCDB', fmtBRL(C2));
+  setText('rendimentoCDB', fmtBRL(D2));
+  setText('aplicacaoCDI', fmtBRL(E2));
+  setText('rendimentoCDI', fmtBRL(F2));
+}
+
+function setExtratoHeader(tipo){
+  const thead = document.getElementById('theadExtrato');
+  thead.innerHTML = '';
+  const tr = document.createElement('tr');
+  function th(t){ const th=document.createElement('th'); th.textContent=t; return th; }
+
+  if(tipo==='depositos'){
+    tr.appendChild(th('Data'));
+    tr.appendChild(th('Depósito'));
+    tr.appendChild(th('Saldo Total'));
+    tr.appendChild(th('Descrição'));
+  } else {
+    tr.appendChild(th('Data'));
+    tr.appendChild(th('Rendimento'));
+  }
+  thead.appendChild(tr);
+}
+
+function renderExtratoRows(tipo, rows){
+  const tbody = document.getElementById('tbodyExtrato');
+  tbody.innerHTML = '';
+  if(!rows.length){
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = (tipo==='depositos') ? 4 : 2;
+    td.textContent = 'Sem registros no período selecionado.';
+    tbody.appendChild(tr).appendChild(td);
+    return;
+  }
+
+  rows.forEach(r=>{
+    const tr = document.createElement('tr');
+    function td(t, right=false){
+      const td=document.createElement('td'); td.textContent=t; if(right) td.className='right'; return td;
+    }
+    if(tipo==='depositos'){
+      tr.appendChild(td(r.data));
+      tr.appendChild(td(fmtBRL(r.deposito), true));
+      tr.appendChild(td(fmtBRL(r.saldo), true));
+      tr.appendChild(td(r.desc || ''));
+    } else {
+      tr.appendChild(td(r.data));
+      tr.appendChild(td(fmtBRL(r.rendimento), true));
+    }
+    document.getElementById('tbodyExtrato').appendChild(tr);
+  });
+}
+
+/** DATA PIPELINES **/
+function withinPeriod(dateStr, periodo){
+  if(periodo==='total') return true;
+  if(!dataAtualizacao) return true;
+  const d = parseDateBR(dateStr) || new Date(dateStr);
+  if(!(d instanceof Date) || isNaN(d.getTime())) return false;
+
+  const end = new Date(dataAtualizacao.getFullYear(), dataAtualizacao.getMonth(), dataAtualizacao.getDate());
+  const days = (periodo==='30') ? 30 : 90;
+  const start = new Date(end); start.setDate(start.getDate() - (days-1));
+
+  const dd = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return dd >= start && dd <= end;
+}
+
+function sortDescByDate(a,b){
+  const da = parseDateBR(a.data) || new Date(a.data);
+  const db = parseDateBR(b.data) || new Date(b.data);
+  return db - da;
+}
+
+async function buildExtrato(tipo, periodo){
+  showLoading();
+  try{
+    let rows = [];
+    if(tipo==='depositos'){
+      const s2 = await fetchCSVBySheetName('2');
+      const start = (s2[0] && (s2[0][0]||'').toLowerCase().includes('data')) ? 1 : 0;
+      for(let i=start;i<s2.length;i++){
+        const r = s2[i];
+        const obj = { data: r[0]||'', deposito: r[1]||0, saldo: r[2]||0, desc: r[3]||'' };
+        if(withinPeriod(obj.data, periodo)) rows.push(obj);
+      }
+    } else if(tipo==='cdb'){
+      const s3 = await fetchCSVBySheetName('3');
+      const start = (s3[0] && (s3[0][0]||'').toLowerCase().includes('data')) ? 1 : 0;
+      for(let i=start;i<s3.length;i++){
+        const r = s3[i];
+        const obj = { data: r[0]||'', rendimento: r[1]||0 };
+        if(withinPeriod(obj.data, periodo)) rows.push(obj);
+      }
+    } else {
+      const s4 = await fetchCSVBySheetName('4');
+      const start = (s4[0] && (s4[0][0]||'').toLowerCase().includes('data')) ? 1 : 0;
+      for(let i=start;i<s4.length;i++){
+        const r = s4[i];
+        const obj = { data: r[0]||'', rendimento: r[1]||0 };
+        if(withinPeriod(obj.data, periodo)) rows.push(obj);
+      }
+    }
+
+    rows.sort(sortDescByDate);
+    const resumo = document.getElementById('extratoResumo');
+    const tipoLabel = (tipo==='depositos') ? 'Depósitos' : (tipo==='cdb' ? 'Rend. CDB' : 'Rend. CDI');
+    const perLabel = (periodo==='total') ? 'Total' : \`Últimos \${periodo} dias\`;
+    resumo.textContent = \`\${tipoLabel} • \${perLabel} • \${rows.length} linha(s)\`;
+
+    setExtratoHeader(tipo);
+    renderExtratoRows(tipo, rows);
+  } finally {
+    hideLoading();
+  }
+}
+
+/** MASTER LOAD **/
+async function loadAll(){
+  showLoading();
+  try{
+    await getGidsFromPubhtml();
+    const s1 = await fetchCSVBySheetName('1');
+    renderPrincipais(s1);
+    const tipo = document.getElementById('tipoExtrato').value;
+    const periodo = document.getElementById('periodo').value;
+    await buildExtrato(tipo, periodo);
+  }catch(err){
+    console.error(err);
+    alert('Falha ao carregar dados da planilha. Verifique se o link está publicado e acessível.\\n\\nDetalhe: '+ (err?.message || err));
+  } finally {
+    hideLoading();
+  }
+}
+
+/** EVENTS **/
+document.getElementById('tipoExtrato').addEventListener('change', async (e)=>{
+  await buildExtrato(e.target.value, document.getElementById('periodo').value);
+});
+document.getElementById('periodo').addEventListener('change', async (e)=>{
+  await buildExtrato(document.getElementById('tipoExtrato').value, e.target.value);
+});
+document.getElementById('refreshBtn').addEventListener('click', async ()=>{
+  cacheSheets = {};
+  await loadAll();
+});
+
+/** LOGIN **/
+function showApp(){ document.getElementById('loginView').style.display='none'; document.getElementById('app').style.display='block'; }
+function showLogin(){ document.getElementById('app').style.display='none'; document.getElementById('loginView').style.display='grid'; }
+
+document.getElementById('loginBtn').addEventListener('click', ()=>{
+  const email = document.getElementById('email').value.trim();
+  const pass = document.getElementById('password').value;
+  const errEl = document.getElementById('loginError');
+  if(email === EXPECTED_USER && pass === EXPECTED_PASS){
+    sessionStorage.setItem('auth','ok');
+    errEl.textContent='';
+    showApp();
+    loadAll();
+  } else {
+    errEl.textContent = 'Usuário ou senha inválidos.';
+  }
+});
+
+// Autologin se já autenticado
+window.addEventListener('DOMContentLoaded', ()=>{
+  if(sessionStorage.getItem('auth')==='ok'){
+    showApp(); loadAll();
+  } else {
+    showLogin();
+  }
+});
 </script>
 </body>
 </html>
