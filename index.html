@@ -1,512 +1,143 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Painel de Saldo</title>
-<style>
-  :root{
-    --bg:#0b0f1a; --bg-soft:#111729; --card:#121a2a; --ink:#e6eefc; --muted:#9fb3d1; --accent:#4da3ff; --ok:#2dd4bf; --warn:#f59e0b;
-    --radius:16px;
-  }
-  html,body{height:100%}
-  body{margin:0;background:linear-gradient(180deg,#0b1020,#0a0d18);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--ink);}
-
-  .container{max-width:1100px;margin:0 auto;padding:28px}
-  .app{display:none}
-  .grid{display:grid;gap:16px}
-  .grid.cards{grid-template-columns: repeat(12, minmax(0,1fr))}
-  .card{background:var(--card);border:1px solid #1b2740;border-radius:var(--radius);padding:16px;box-shadow:0 0 0 1px rgba(255,255,255,0.02) inset}
-  .card h3{margin:0 0 8px 0;font-weight:600;font-size:14px;color:var(--muted);letter-spacing:.3px;text-transform:uppercase}
-  .value{font-size:28px;font-weight:700;letter-spacing:.2px}
-  .sub{font-size:13px;color:var(--muted)}
-  .ok{color:var(--ok)}
-  .warn{color:var(--warn)}
-  .accent{color:var(--accent)}
-
-  .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
-  .header .title{font-size:18px;font-weight:700;letter-spacing:.2px}
-  .pill{border:1px solid #20304f;background:#0d1424;border-radius:999px;padding:6px 10px;font-size:12px;color:var(--muted)}
-  .row{display:flex;gap:12px;flex-wrap:wrap}
-  select,button{background:#101a2e;border:1px solid #233456;border-radius:12px;color:var(--ink);padding:10px 12px;font-size:14px}
-  button.primary{background:linear-gradient(180deg,#1d3a66,#14284b);border-color:#2b4b80}
-  table{width:100%;border-collapse:separate;border-spacing:0 8px}
-  thead th{font-size:12px;color:var(--muted);text-align:left;padding:6px 10px}
-  tbody td{background:var(--bg-soft);border:1px solid #1a2744;border-left-width:1px;padding:10px;border-radius:8px}
-  tbody tr td:first-child{border-top-left-radius:10px;border-bottom-left-radius:10px}
-  tbody tr td:last-child{border-top-right-radius:10px;border-bottom-right-radius:10px}
-  .right{text-align:right}
-
-  /* layout */
-  .span-6{grid-column: span 6 / span 6}
-  .span-4{grid-column: span 4 / span 4}
-  .span-3{grid-column: span 3 / span 3}
-  .span-12{grid-column: 1 / -1}
-
-  /* login */
-  .login-wrap{min-height:100%;display:grid;place-items:center;padding:24px}
-  .login{width:100%;max-width:380px;background:var(--card);border:1px solid #1b2740;border-radius:20px;padding:22px}
-  .login h1{margin:0 0 6px 0;font-size:20px}
-  .login p{margin:0 0 18px 0;color:var(--muted);font-size:14px}
-  .field{display:grid;gap:6px;margin-bottom:12px}
-  .field input{padding:12px 12px;border-radius:12px;border:1px solid #233456;background:#101a2e;color:var(--ink);font-size:14px}
-  .error{color:#ff6b6b;font-size:13px;min-height:18px}
-
-  /* loading overlay */
-  #loadingOverlay{
-    position: fixed; inset: 0; display:none; align-items:center; justify-content:center;
-    background: rgba(6, 10, 20, .6); backdrop-filter: blur(2px); z-index: 9999;
-  }
-  .spinner{
-    width: 64px; height: 64px; border-radius: 50%;
-    border: 6px solid rgba(255,255,255,.15);
-    border-top-color: rgba(77,163,255,1);
-    animation: spin 1s linear infinite;
-  }
-  @keyframes spin{ to { transform: rotate(360deg); } }
-  .loading-text{margin-top:12px; font-size:14px; color:var(--muted); text-align:center}
-
-  @media (max-width:900px){
-    .span-6,.span-4,.span-3{grid-column: 1 / -1}
-  }
-
-  /* disabled state for controls while loading */
-  .disabled{opacity:.6; pointer-events:none; filter: grayscale(40%);}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Saldo</title>
+    <style>
+        body {
+            margin: 0;
+            background: #0b1020;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+        }
+        .login {
+            background: #121a2a;
+            padding: 20px;
+            border-radius: 16px;
+            width: 300px;
+            border: 1px solid #233456;
+        }
+        .field {
+            margin: 10px 0;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #333;
+            background: #101a2e;
+            color: #fff;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #1d3a66;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #2a4d7a;
+        }
+        .error {
+            color: #ff6b6b;
+            font-size: 13px;
+            min-height: 18px;
+        }
+        .app {
+            display: none;
+            padding: 20px;
+            width: 100%;
+            max-width: 800px;
+        }
+        .card {
+            background: #121a2a;
+            padding: 16px;
+            margin: 10px 0;
+            border-radius: 12px;
+            border: 1px solid #233456;
+        }
+        .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4da3ff;
+            margin: 8px 0;
+        }
+        h1 {
+            color: #e6eefc;
+            margin-bottom: 20px;
+        }
+        h3 {
+            color: #9fb3d1;
+            margin: 0 0 8px 0;
+            font-size: 14px;
+        }
+    </style>
 </head>
 <body>
-
-<!-- LOGIN -->
-<div id="loginView" class="login-wrap">
-  <div class="login">
-    <h1>Entrar</h1>
-    <p>Acesse com seu usuário e senha.</p>
-    <div class="field">
-      <label for="email">Usuário</label>
-      <input id="email" type="email" autocomplete="username" placeholder="seu@email.com" />
-    </div>
-    <div class="field">
-      <label for="password">Senha</label>
-      <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
-    </div>
-    <div class="error" id="loginError"></div>
-    <button id="loginBtn" class="primary" style="width:100%;margin-top:4px">Entrar</button>
-  </div>
-</div>
-
-<!-- APP -->
-<div id="app" class="app">
-  <div class="container">
-    <div class="header">
-      <div class="title">Acompanhamento de Saldo</div>
-      <div class="pill">Atualização: <span id="updatedAt">—</span></div>
-    </div>
-
-    <!-- CARDS -->
-    <div class="grid cards" id="cards">
-      <div class="card span-6">
-        <h3>Valor Total</h3>
-        <div class="value" id="valorTotal">—</div>
-      </div>
-      <div class="card span-6">
-        <h3>Rendimento Total</h3>
-        <div class="value ok" id="rendimentoTotal">—</div>
-      </div>
-
-      <div class="card span-3">
-        <h3>Aplicação CDB</h3>
-        <div class="value" id="aplicacaoCDB">—</div>
-        <div class="sub">Principal</div>
-      </div>
-      <div class="card span-3">
-        <h3>Rendimento CDB</h3>
-        <div class="value ok" id="rendimentoCDB">—</div>
-        <div class="sub">Acumulado</div>
-      </div>
-      <div class="card span-3">
-        <h3>Aplicação CDI</h3>
-        <div class="value" id="aplicacaoCDI">—</div>
-        <div class="sub">Principal</div>
-      </div>
-      <div class="card span-3">
-        <h3>Rendimento CDI</h3>
-        <div class="value ok" id="rendimentoCDI">—</div>
-        <div class="sub">Acumulado</div>
-      </div>
-    </div>
-
-    <!-- CONTROLES -->
-    <div class="card" style="margin-top:16px">
-      <div class="row" style="justify-content:space-between;align-items:center">
-        <div class="row" id="controlsRow">
-          <div class="field">
-            <label for="tipoExtrato" class="sub">Tipo de extrato</label>
-            <select id="tipoExtrato">
-              <option value="depositos">Depósitos</option>
-              <option value="cdb">Rendimento CDB</option>
-              <option value="cdi">Rendimento CDI</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="periodo" class="sub">Período</label>
-            <select id="periodo">
-              <option value="total">Total</option>
-              <option value="30">Últimos 30 dias</option>
-              <option value="90">Últimos 90 dias</option>
-            </select>
-          </div>
+    <div id="loginView" class="login">
+        <h1>Entrar</h1>
+        <div class="field">
+            <input type="email" id="email" placeholder="lamounier16@gmail.com">
         </div>
-        <div>
-          <button id="refreshBtn" class="primary">Atualizar agora</button>
+        <div class="field">
+            <input type="password" id="password" placeholder="helilamounier16">
         </div>
-      </div>
+        <div class="error" id="loginError"></div>
+        <button id="loginBtn">Entrar</button>
     </div>
-
-    <!-- EXTRATO -->
-    <div class="card" style="margin-top:16px">
-      <div class="header" style="margin:0 0 8px 0">
-        <div class="title">Extrato</div>
-        <div class="pill" id="extratoResumo">—</div>
-      </div>
-      <div style="overflow-x:auto">
-        <table id="tabelaExtrato">
-          <thead id="theadExtrato"></thead>
-          <tbody id="tbodyExtrato"></tbody>
-        </table>
-      </div>
+    <div id="app" class="app">
+        <h1>Painel de Saldo</h1>
+        <div class="card">
+            <h3>Saldo Total</h3>
+            <div class="value" id="saldoTotal">R$ 0,00</div>
+        </div>
+        <div class="card">
+            <h3>Aplicação CDB</h3>
+            <div class="value" id="aplicacaoCDB">R$ 0,00</div>
+        </div>
+        <div class="card">
+            <h3>Aplicação CDI</h3>
+            <div class="value" id="aplicacaoCDI">R$ 0,00</div>
+        </div>
     </div>
-  </div>
-</div>
-
-<!-- Loading Overlay -->
-<div id="loadingOverlay">
-  <div style="display:flex; flex-direction:column; align-items:center;">
-    <div class="spinner" aria-hidden="true"></div>
-    <div class="loading-text">Carregando dados...</div>
-  </div>
-</div>
-
-<script>
-/** CONFIG **/
-const PUBLISHED_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSSTZeX26G70f5Xd9WyqZkLE4kjkL4qUUVdpHGras3NWUqjHvRPEY62NB8IzPGpgZmIKbekFDD7gxfg/pubhtml";
-const BASE_PREFIX = PUBLISHED_URL.replace(/\\/pubhtml(\\?.*)?$/,'');
-
-const EXPECTED_USER = "lamounier16@gmail.com";
-const EXPECTED_PASS = "helilamounier16";
-
-/** STATE **/
-let gids = {}; // { "1": <gid>, "2": <gid>, ... }
-let dataAtualizacao = null; // Date
-let cacheSheets = {}; // cache CSV parsed per gid
-let loadingCount = 0;
-
-/** UI HELPERS **/
-const fmtBRL = (v) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(String(v).replace(/\\./g,'').replace(',','.')||0));
-const pad = (n)=> String(n).padStart(2,'0');
-const fmtDateBR = (d)=> \`\${pad(d.getDate())}/\${pad(d.getMonth()+1)}/\${d.getFullYear()}\`;
-function parseDateBR(str){
-  // aceita dd/mm/aaaa
-  const m = String(str||'').trim().match(/^(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})$/);
-  if(!m) return null;
-  const [_, dd, mm, yyyy] = m;
-  const dt = new Date(Number(yyyy), Number(mm)-1, Number(dd));
-  return isNaN(dt.getTime()) ? null : dt;
-}
-function setText(id, text){ const el = document.getElementById(id); if(el) el.textContent = text; }
-
-/** LOADING OVERLAY **/
-function showLoading(){
-  loadingCount++;
-  document.getElementById('loadingOverlay').style.display = 'flex';
-  document.getElementById('controlsRow')?.classList.add('disabled');
-  document.getElementById('refreshBtn')?.classList.add('disabled');
-}
-function hideLoading(){
-  loadingCount = Math.max(0, loadingCount - 1);
-  if(loadingCount===0){
-    document.getElementById('loadingOverlay').style.display = 'none';
-    document.getElementById('controlsRow')?.classList.remove('disabled');
-    document.getElementById('refreshBtn')?.classList.remove('disabled');
-  }
-}
-
-/** SIMPLE CSV PARSER (robusto p/ aspas) **/
-function parseCSV(text){
-  const rows = [];
-  let i=0, field='', row=[], inQuotes=false;
-  while(i<text.length){
-    const c = text[i];
-    if(inQuotes){
-      if(c === '"'){
-        if(text[i+1] === '"'){ field+='"'; i+=2; continue; } // escaped "
-        inQuotes=false; i++; continue;
-      } else { field+=c; i++; continue; }
-    } else {
-      if(c === '"'){ inQuotes=true; i++; continue; }
-      if(c === ','){ row.push(field); field=''; i++; continue; }
-      if(c === '\\n'){
-        row.push(field); rows.push(row); field=''; row=[]; i++; continue;
-      }
-      if(c === '\\r'){ i++; continue; }
-      field+=c; i++;
-    }
-  }
-  row.push(field); rows.push(row);
-  if(rows.length && rows[rows.length-1].length===1 && rows[rows.length-1][0]==='') rows.pop();
-  return rows;
-}
-
-/** FETCH HELPERS **/
-async function getGidsFromPubhtml(){
-  showLoading();
-  try{
-    const res = await fetch(PUBLISHED_URL, {mode:'cors'});
-    if(!res.ok) throw new Error('Falha ao ler pubhtml');
-    const html = await res.text();
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-
-    const tabs = [...doc.querySelectorAll('[data-sheets-gid]')];
-    if(!tabs.length){
-      const anchors = [...doc.querySelectorAll('a[href*="gid="]')];
-      anchors.forEach(a=>{
-        const m = a.textContent && a.textContent.trim();
-        const gid = (a.getAttribute('href')||'').match(/gid=(\\d+)/);
-        if(m && gid){ gids[m] = gid[1]; }
-      });
-    } else {
-      tabs.forEach(el=>{
-        const name = (el.textContent||'').trim();
-        const gid = el.getAttribute('data-sheets-gid');
-        if(name && gid){ gids[name] = gid; }
-      });
-    }
-
-    ['1','2','3','4'].forEach(n=>{
-      if(!gids[n]){
-        const link = [...doc.querySelectorAll('a')].find(a=> (a.textContent||'').trim()===n && /gid=\\d+/.test(a.href||''));
-        if(link){
-          const gm = link.href.match(/gid=(\\d+)/);
-          if(gm) gids[n]=gm[1];
+    <script>
+        const EXPECTED_USER = 'lamounier16@gmail.com';
+        const EXPECTED_PASS = 'helilamounier16';
+        
+        function showApp() {
+            document.getElementById('loginView').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
         }
-      }
-    });
-
-    const missing = ['1','2','3','4'].filter(k=>!gids[k]);
-    if(missing.length) throw new Error('Não foi possível identificar as abas: '+missing.join(', '));
-    return gids;
-  } finally {
-    hideLoading();
-  }
-}
-
-async function fetchCSVBySheetName(name){
-  if(!gids[name]) throw new Error('GID não encontrado para aba '+name);
-  const url = \`\${BASE_PREFIX}/pub?gid=\${encodeURIComponent(gids[name])}&single=true&output=csv\`;
-  if(cacheSheets[url]) return cacheSheets[url];
-  showLoading();
-  try{
-    const res = await fetch(url, {mode:'cors'});
-    if(!res.ok) throw new Error('Falha ao baixar CSV da aba '+name);
-    const txt = await res.text();
-    const rows = parseCSV(txt);
-    cacheSheets[url] = rows;
-    return rows;
-  } finally {
-    hideLoading();
-  }
-}
-
-/** RENDER **/
-function renderPrincipais(sheet1){
-  const get = (r,c) => (sheet1[r] && sheet1[r][c]) ? sheet1[r][c] : '';
-  const A2 = get(1,0);
-  const C2 = get(1,2);
-  const D2 = get(1,3);
-  const E2 = get(1,4);
-  const F2 = get(1,5);
-  const G2 = get(1,6);
-  const H2 = get(1,7);
-
-  const dt = parseDateBR(A2) || new Date(A2);
-  dataAtualizacao = (dt && !isNaN(dt.getTime())) ? dt : null;
-  setText('updatedAt', dataAtualizacao ? fmtDateBR(dataAtualizacao) : (A2 || '—'));
-
-  setText('valorTotal', fmtBRL(G2));
-  setText('rendimentoTotal', fmtBRL(H2));
-  setText('aplicacaoCDB', fmtBRL(C2));
-  setText('rendimentoCDB', fmtBRL(D2));
-  setText('aplicacaoCDI', fmtBRL(E2));
-  setText('rendimentoCDI', fmtBRL(F2));
-}
-
-function setExtratoHeader(tipo){
-  const thead = document.getElementById('theadExtrato');
-  thead.innerHTML = '';
-  const tr = document.createElement('tr');
-  function th(t){ const th=document.createElement('th'); th.textContent=t; return th; }
-
-  if(tipo==='depositos'){
-    tr.appendChild(th('Data'));
-    tr.appendChild(th('Depósito'));
-    tr.appendChild(th('Saldo Total'));
-    tr.appendChild(th('Descrição'));
-  } else {
-    tr.appendChild(th('Data'));
-    tr.appendChild(th('Rendimento'));
-  }
-  thead.appendChild(tr);
-}
-
-function renderExtratoRows(tipo, rows){
-  const tbody = document.getElementById('tbodyExtrato');
-  tbody.innerHTML = '';
-  if(!rows.length){
-    const tr = document.createElement('tr');
-    const td = document.createElement('td');
-    td.colSpan = (tipo==='depositos') ? 4 : 2;
-    td.textContent = 'Sem registros no período selecionado.';
-    tbody.appendChild(tr).appendChild(td);
-    return;
-  }
-
-  rows.forEach(r=>{
-    const tr = document.createElement('tr');
-    function td(t, right=false){
-      const td=document.createElement('td'); td.textContent=t; if(right) td.className='right'; return td;
-    }
-    if(tipo==='depositos'){
-      tr.appendChild(td(r.data));
-      tr.appendChild(td(fmtBRL(r.deposito), true));
-      tr.appendChild(td(fmtBRL(r.saldo), true));
-      tr.appendChild(td(r.desc || ''));
-    } else {
-      tr.appendChild(td(r.data));
-      tr.appendChild(td(fmtBRL(r.rendimento), true));
-    }
-    document.getElementById('tbodyExtrato').appendChild(tr);
-  });
-}
-
-/** DATA PIPELINES **/
-function withinPeriod(dateStr, periodo){
-  if(periodo==='total') return true;
-  if(!dataAtualizacao) return true;
-  const d = parseDateBR(dateStr) || new Date(dateStr);
-  if(!(d instanceof Date) || isNaN(d.getTime())) return false;
-
-  const end = new Date(dataAtualizacao.getFullYear(), dataAtualizacao.getMonth(), dataAtualizacao.getDate());
-  const days = (periodo==='30') ? 30 : 90;
-  const start = new Date(end); start.setDate(start.getDate() - (days-1));
-
-  const dd = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  return dd >= start && dd <= end;
-}
-
-function sortDescByDate(a,b){
-  const da = parseDateBR(a.data) || new Date(a.data);
-  const db = parseDateBR(b.data) || new Date(b.data);
-  return db - da;
-}
-
-async function buildExtrato(tipo, periodo){
-  showLoading();
-  try{
-    let rows = [];
-    if(tipo==='depositos'){
-      const s2 = await fetchCSVBySheetName('2');
-      const start = (s2[0] && (s2[0][0]||'').toLowerCase().includes('data')) ? 1 : 0;
-      for(let i=start;i<s2.length;i++){
-        const r = s2[i];
-        const obj = { data: r[0]||'', deposito: r[1]||0, saldo: r[2]||0, desc: r[3]||'' };
-        if(withinPeriod(obj.data, periodo)) rows.push(obj);
-      }
-    } else if(tipo==='cdb'){
-      const s3 = await fetchCSVBySheetName('3');
-      const start = (s3[0] && (s3[0][0]||'').toLowerCase().includes('data')) ? 1 : 0;
-      for(let i=start;i<s3.length;i++){
-        const r = s3[i];
-        const obj = { data: r[0]||'', rendimento: r[1]||0 };
-        if(withinPeriod(obj.data, periodo)) rows.push(obj);
-      }
-    } else {
-      const s4 = await fetchCSVBySheetName('4');
-      const start = (s4[0] && (s4[0][0]||'').toLowerCase().includes('data')) ? 1 : 0;
-      for(let i=start;i<s4.length;i++){
-        const r = s4[i];
-        const obj = { data: r[0]||'', rendimento: r[1]||0 };
-        if(withinPeriod(obj.data, periodo)) rows.push(obj);
-      }
-    }
-
-    rows.sort(sortDescByDate);
-    const resumo = document.getElementById('extratoResumo');
-    const tipoLabel = (tipo==='depositos') ? 'Depósitos' : (tipo==='cdb' ? 'Rend. CDB' : 'Rend. CDI');
-    const perLabel = (periodo==='total') ? 'Total' : \`Últimos \${periodo} dias\`;
-    resumo.textContent = \`\${tipoLabel} • \${perLabel} • \${rows.length} linha(s)\`;
-
-    setExtratoHeader(tipo);
-    renderExtratoRows(tipo, rows);
-  } finally {
-    hideLoading();
-  }
-}
-
-/** MASTER LOAD **/
-async function loadAll(){
-  showLoading();
-  try{
-    await getGidsFromPubhtml();
-    const s1 = await fetchCSVBySheetName('1');
-    renderPrincipais(s1);
-    const tipo = document.getElementById('tipoExtrato').value;
-    const periodo = document.getElementById('periodo').value;
-    await buildExtrato(tipo, periodo);
-  }catch(err){
-    console.error(err);
-    alert('Falha ao carregar dados da planilha. Verifique se o link está publicado e acessível.\\n\\nDetalhe: '+ (err?.message || err));
-  } finally {
-    hideLoading();
-  }
-}
-
-/** EVENTS **/
-document.getElementById('tipoExtrato').addEventListener('change', async (e)=>{
-  await buildExtrato(e.target.value, document.getElementById('periodo').value);
-});
-document.getElementById('periodo').addEventListener('change', async (e)=>{
-  await buildExtrato(document.getElementById('tipoExtrato').value, e.target.value);
-});
-document.getElementById('refreshBtn').addEventListener('click', async ()=>{
-  cacheSheets = {};
-  await loadAll();
-});
-
-/** LOGIN **/
-function showApp(){ document.getElementById('loginView').style.display='none'; document.getElementById('app').style.display='block'; }
-function showLogin(){ document.getElementById('app').style.display='none'; document.getElementById('loginView').style.display='grid'; }
-
-document.getElementById('loginBtn').addEventListener('click', ()=>{
-  const email = document.getElementById('email').value.trim();
-  const pass = document.getElementById('password').value;
-  const errEl = document.getElementById('loginError');
-  if(email === EXPECTED_USER && pass === EXPECTED_PASS){
-    sessionStorage.setItem('auth','ok');
-    errEl.textContent='';
-    showApp();
-    loadAll();
-  } else {
-    errEl.textContent = 'Usuário ou senha inválidos.';
-  }
-});
-
-// Autologin se já autenticado
-window.addEventListener('DOMContentLoaded', ()=>{
-  if(sessionStorage.getItem('auth')==='ok'){
-    showApp(); loadAll();
-  } else {
-    showLogin();
-  }
-});
-</script>
+        
+        document.getElementById('loginBtn').addEventListener('click', () => {
+            const email = document.getElementById('email').value.trim();
+            const pass = document.getElementById('password').value;
+            const errEl = document.getElementById('loginError');
+            
+            if (email === EXPECTED_USER && pass === EXPECTED_PASS) {
+                errEl.textContent = '';
+                showApp();
+                document.getElementById('saldoTotal').textContent = 'R$ 150.000,00';
+                document.getElementById('aplicacaoCDB').textContent = 'R$ 100.000,00';
+                document.getElementById('aplicacaoCDI').textContent = 'R$ 50.000,00';
+            } else {
+                errEl.textContent = 'Usuário ou senha inválidos.';
+            }
+        });
+        
+        // Permitir login com Enter
+        document.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && document.getElementById('loginView').style.display !== 'none') {
+                document.getElementById('loginBtn').click();
+            }
+        });
+    </script>
 </body>
 </html>
